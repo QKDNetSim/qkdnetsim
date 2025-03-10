@@ -25,7 +25,7 @@ QKDNetSim has been successfully tested on linux distributions:
 
 QKDNetSim includes QKDEncryptor class that relies on cryptographic algorithms and schemes from Crypto++ open-source C++ class cryptographic library. Currently, QKD crypto supports several cryptographic algorithms and cryptographic hashes, including One-Time Pad (OTP) cipher, Advanced Encryption Standard (AES) block cipher, VMAC message authentication code (MAC) algorithm, and others.
 
-In addition to NS-3 v3.41 requirements, it is necessery to install crypto++ (libcryptopp) and Universally Unique Identifiers (UUIDs) libraries:
+In addition to NS-3 v3.41 requirements, it is necessary to install crypto++ (libcryptopp) and Universally Unique Identifiers (UUIDs) libraries:
 
 ```bash
 sudo apt-get install libcrypto++-dev libcrypto++-doc libcrypto++-utils gnuplot uuid-dev
@@ -44,7 +44,7 @@ cd qkdnetsim-v2
 Execute the test script:
 
 ```bash
-./ns3 --run scratch/qkd_etsi_014.cc
+./ns3 run scratch/qkd_etsi_014.cc
 ```
  
 
