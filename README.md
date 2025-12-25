@@ -43,7 +43,7 @@ QKDNetSim includes QKDEncryptor class that relies on cryptographic algorithms an
 
 	```bash
 	cd contrib
-  git clone -b master https://github.com/QKDNetSim/qkdnetsim-v2
+    git clone -b master https://github.com/QKDNetSim/qkdnetsim
     ```
 
 4. Check patches. They should report no error
