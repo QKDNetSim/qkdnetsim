@@ -36,19 +36,20 @@ QKDNetSim includes QKDEncryptor class that relies on cryptographic algorithms an
 2. Install the NS-3 of version 3.46 from the
 
 	```bash
-	git clone -b ns-3.45 https://gitlab.com/nsnam/ns-3-dev.git
+	git clone -b ns-3.46 https://gitlab.com/nsnam/ns-3-dev.git
     ```
 
 3. Download qkdnetsim in contrib directory
 
 	```bash
-	cd contrib
+	cd ns-3-dev/contrib
     git clone -b master https://github.com/QKDNetSim/qkdnetsim
     ```
 
 4. Check patches. They should report no error
 
 	```bash
+    cd ..
 	git apply --check contrib/qkdnetsim/patches/gnuplot_cc.patches
 	git apply --check contrib/qkdnetsim/patches/gnuplot_h.patches
     ```
