@@ -1,0 +1,12 @@
+diff --git a/src/stats/model/gnuplot.h b/src/stats/model/gnuplot.h
+index 2345678..abcdef0 100644
+--- a/src/stats/model/gnuplot.h
++++ b/src/stats/model/gnuplot.h
+@@ -117,6 +117,7 @@
+         STEPS,
+         FSTEPS,
+         HISTEPS,
++        FILLEDCURVE
+     };
+ 
+     /**

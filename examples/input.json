@@ -1,0 +1,43 @@
+{
+  "qkd_links": [
+    {
+      "startTime": 0,
+      "stopTime": 150,
+      "keyRate": 28549.242,
+      "keySize": 10000,
+      "ppPacketSize": 100,
+      "ppRate": 1000,
+      "srcDstDistance": 30297,
+      "srcNodeId": 1,
+      "dstNodeId": 2
+    },
+    {
+      "startTime": 0,
+      "stopTime": 150,
+      "keyRate": 28890.624,
+      "keySize": 10000,
+      "ppPacketSize": 100,
+      "ppRate": 1000,
+      "srcDstDistance": 29939,
+      "srcNodeId": 2,
+      "dstNodeId": 3
+    }
+  ],
+  "etsi_004": [],
+  "etsi_014": [
+    {
+      "startTime": 50,
+      "stopTime": 150,
+      "encryptionType": 1,
+      "authenticationType": 1,
+      "numberOfKeyToFetchFromKMSOptions": 3,
+      "appHoldTimeValue": 1,
+      "appRate": 20000,
+      "appPacketSize": 100,
+      "aesLifetime": 10000,
+      "srcDstDistance": 57958,
+      "srcNodeId": 1,
+      "dstNodeId": 3
+    }
+  ]
+}
