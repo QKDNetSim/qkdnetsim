@@ -295,6 +295,12 @@ public:
   std::vector<Ptr<QBuffer> >  GetQBuffersVector(){
     return m_qbuffersVector;
   }
+  
+  /**
+   * @brief Prepare send socket to communicate with peer KMS Application
+   * @param uint32_t destination SAE ID
+   */
+  void CheckSocketsKMS(Ipv4Address dstSaeId);
 
 protected:
 
@@ -806,12 +812,6 @@ private:
 
 
   Ipv4Address GetDestinationKmsAddress(Ptr<Socket> socket);
-
-  /**
-   * @brief Prepare send socket to communicate with peer KMS Application
-   * @param uint32_t destination SAE ID
-   */
-  void CheckSocketsKMS(Ipv4Address dstSaeId);
 
   /**
    * @brief Obtain send socket
