@@ -488,7 +488,7 @@ QKDKeyManagerSystemApplication::Relay(uint32_t dstKmNodeId, uint32_t amount)
   NS_ASSERT(packet);
 
   CheckSocketsKMS( nextHopAddress ); //Check connection to peer KMS!
-  Ptr<Socket> sendSocket = GetSendSocketKMS( nextHopAddress );
+  Ptr<Socket> sendSocket = GetSocketKMS( nextHopAddress );
   NS_ASSERT(sendSocket);
 
   /**
@@ -606,7 +606,7 @@ QKDKeyManagerSystemApplication::Fill(
   NS_ASSERT(packet);
 
   CheckSocketsKMS( peerAddress ); //Check connection to peer KMS!
-  Ptr<Socket> sendSocket = GetSendSocketKMS( peerAddress );
+  Ptr<Socket> sendSocket = GetSocketKMS( peerAddress );
   NS_ASSERT(sendSocket);
 
   HttpQuery query;
@@ -697,16 +697,12 @@ QKDKeyManagerSystemApplication::DoDispose()
     m_sinkSocket = nullptr;
   }
 
-  std::map<Ipv4Address, std::pair<Ptr<Socket>, Ptr<Socket> > >::iterator it;
+  std::map<Ipv4Address, KMSNode>::iterator it;
   for( it = m_socketPairsKMS.begin(); !(it == m_socketPairsKMS.end());  it++ ){
-    if(it->second.first) {
+    if(it->second.socket) {
       //it->second.first->Close();
-      it->second.first = nullptr;
-    }
-    if(it->second.second) {
-      //it->second.second->Close();
-      it->second.second = nullptr;
-    }
+      it->second.socket = nullptr;
+    } 
   }
   Application::DoDispose();
 }
@@ -734,19 +730,20 @@ QKDKeyManagerSystemApplication::HandleAcceptKMSs(Ptr<Socket> s, const Address& f
   Ipv4Address destKMS = InetSocketAddress::ConvertFrom(from).GetIpv4();
   auto it = m_socketPairsKMS.find(destKMS);
   if( it != m_socketPairsKMS.end() )
-      it->second.first = s; //Set receiving socket
-  else{
-    Ptr<Socket> sendSocket = 0;
+  {
+      it->second.socket = s; //Set receiving socket 
+  }else{ 
+    KMSNode val;
+    val.socket = s;
+    val.address = destKMS; 
     m_socketPairsKMS.insert(
       std::make_pair(
         destKMS,
-        std::make_pair(s, sendSocket)
+        val
       )
     );
   }
-
   CheckSocketsKMS(destKMS);
-
 }
 
 void
@@ -844,23 +841,26 @@ QKDKeyManagerSystemApplication::SendToSocketPair(Ptr<Socket> socket, Ptr<Packet>
     NS_LOG_FUNCTION(this << packet->GetUid() << "enqued for socket " << socket);
   }
 }
-
+ 
 void
 QKDKeyManagerSystemApplication::SendToSocketPairKMS(Ptr<Socket> socket, Ptr<Packet> packet)
 {
     NS_LOG_FUNCTION( this << socket );
+    //check if socket is connected
+    //https://www.nsnam.org/doxygen/classns3_1_1_socket.html#a78a3c37a539d2e70869bb82cc60fbb09
+    Address connectedAddress;
 
-    std::map<Ipv4Address, std::pair<Ptr<Socket>, Ptr<Socket> > >::iterator it;
-    for( it = m_socketPairsKMS.begin(); !(it == m_socketPairsKMS.end());  it++ )
-      //we do not have info about KMS destination address ?
-      if( it->second.first == socket )
-      {
-        Ptr<Socket> sendingSocket = it->second.second;
-        sendingSocket->Send(packet);
-        NS_LOG_FUNCTION( this << "Packet ID" << packet->GetUid() << "Sending socket" << sendingSocket );
-      }
-}
-
+    //send the packet only if connected!
+    if(socket->GetPeerName(connectedAddress) == 0){
+      socket->Send(packet); 
+      m_txTraceKMSs(packet, GetNode()->GetId());
+      NS_LOG_FUNCTION(this << packet->GetUid() << "sent via socket " << socket);
+    //otherwise wait in the queue
+    }else{
+      m_packetQueuesKMS.insert( std::make_pair(  socket ,  packet) );
+      NS_LOG_FUNCTION(this << packet->GetUid() << "enqued for socket " << socket);
+    }
+} 
 void
 QKDKeyManagerSystemApplication::CheckSocketsKMS(Ipv4Address kmsDstAddress)
 {
@@ -869,62 +869,63 @@ QKDKeyManagerSystemApplication::CheckSocketsKMS(Ipv4Address kmsDstAddress)
   //Local KMS should check if the socket for this connection already exists?
   //Local KMS can have connections to multiple KMS systems - neighbor and distant KMSs
   auto i = m_socketPairsKMS.find( kmsDstAddress );
-
-  if(i == m_socketPairsKMS.end()){
-    NS_LOG_FUNCTION( this << "No connection between KMS defined!"); //@toDo: include HTTP response!
-    EstablishKMLinkSockets(kmsDstAddress);
-    CheckSocketsKMS(kmsDstAddress);
-  }else{
-
-    std::pair<Ptr<Socket>, Ptr<Socket> > pair = i->second;
-    if(!pair.second){
-
-      NS_LOG_FUNCTION(this << "Let's create a new send socket to reach KMS!");
-
-      Ptr<Socket> sendSocket;
-      Ptr<Socket> sinkSocket = pair.first;
-
-      if(sinkSocket->GetSocketType() != Socket::NS3_SOCK_STREAM &&
-          sinkSocket->GetSocketType() != Socket::NS3_SOCK_SEQPACKET)
-      {
-        NS_LOG_FUNCTION("Create UDP socket!");
-        sendSocket = Socket::CreateSocket(GetNode(), UdpSocketFactory::GetTypeId() );
-      }else{
-        NS_LOG_FUNCTION("Create TCP socket!");
-        sendSocket = Socket::CreateSocket(GetNode(), TcpSocketFactory::GetTypeId() );
-        //disable Nagle’s algorithm
-        sendSocket->SetAttribute("TcpNoDelay", BooleanValue(true));  
-      }
-      //sendSocket->ShutdownRecv();
-      sendSocket->SetConnectCallback(
-        MakeCallback(&QKDKeyManagerSystemApplication::ConnectionSucceededKMSs, this),
-        MakeCallback(&QKDKeyManagerSystemApplication::ConnectionFailedKMSs, this));
-      sendSocket->SetDataSentCallback( MakeCallback(&QKDKeyManagerSystemApplication::DataSendKMSs, this));
-
-      InetSocketAddress peerAddress = InetSocketAddress(
+  if(i == m_socketPairsKMS.end() )
+  { 
+    NS_LOG_FUNCTION( this << "No connection between KMS defined!"); //@toDo: include HTTP response! 
+    KMSNode val;
+    val.socket = nullptr;
+    val.address = kmsDstAddress; 
+    m_socketPairsKMS.insert(
+      std::make_pair(
         kmsDstAddress,
-        8080
-      );
-      sendSocket->Bind();
-      sendSocket->Connect( peerAddress );
+        val
+      )
+    );
+    CheckSocketsKMS(kmsDstAddress);
+    return;
 
-      //update socket pair entry
-      i->second.second = sendSocket;
+  }else if(!i->second.socket)
+  {
+    NS_LOG_FUNCTION(this << "Let's create a new TCP socket to reach KMS!" << kmsDstAddress);
 
-      NS_LOG_FUNCTION(this
-        << "Create the send socket " << sendSocket
-        << " from KMS to KMS which is on " << kmsDstAddress
-      );
+    Ptr<Socket> socket = Socket::CreateSocket(GetNode(), TcpSocketFactory::GetTypeId() );
+    //disable Nagle’s algorithm
+    socket->SetAttribute("TcpNoDelay", BooleanValue(true));
+    socket->SetConnectCallback(
+      MakeCallback(&QKDKeyManagerSystemApplication::ConnectionSucceededKMSs, this),
+      MakeCallback(&QKDKeyManagerSystemApplication::ConnectionFailedKMSs, this));
+    socket->SetDataSentCallback( MakeCallback(&QKDKeyManagerSystemApplication::DataSendKMSs, this));
+    socket->SetRecvCallback(MakeCallback(&QKDKeyManagerSystemApplication::HandleReadKMSs, this));
+    socket->SetAcceptCallback(
+      MakeNullCallback<bool, Ptr<Socket>, const Address &>(),
+      MakeCallback(&QKDKeyManagerSystemApplication::HandleAcceptKMSs, this)
+    );
+    socket->SetCloseCallbacks(
+      MakeCallback(&QKDKeyManagerSystemApplication::HandlePeerCloseKMSs, this),
+      MakeCallback(&QKDKeyManagerSystemApplication::HandlePeerErrorKMSs, this)
+    ); 
+    InetSocketAddress peerAddress = InetSocketAddress(
+      kmsDstAddress,
+      8080
+    );
+    socket->Bind();
+    socket->Connect( peerAddress );
 
-    }else{
-      NS_LOG_FUNCTION(this << "Socket to peer KMS exist. No action required");
-    }
+    //update socket pair entry
+    i->second.socket = socket; 
 
+    NS_LOG_FUNCTION(this
+      << "Create the send socket " << socket
+      << " from KMS to KMS which is on " << kmsDstAddress
+    );
+
+  }else{
+    NS_LOG_FUNCTION(this << "Socket to peer KMS exist. No action required"); 
   }
 }
 
 Ptr<Socket>
-QKDKeyManagerSystemApplication::GetSendSocketKMS(Ipv4Address kmsDstAddress)
+QKDKeyManagerSystemApplication::GetSocketKMS(Ipv4Address kmsDstAddress)
 {
   NS_LOG_FUNCTION( this << kmsDstAddress );
   //Local KMS should create socket to send data to peer KMS
@@ -932,19 +933,15 @@ QKDKeyManagerSystemApplication::GetSendSocketKMS(Ipv4Address kmsDstAddress)
   //Local KMS can have connections to multiple KMS systems - neighbor and distant KMSs
   auto i = m_socketPairsKMS.find( kmsDstAddress );
 
-  if(i == m_socketPairsKMS.end()){
-
+  if(i == m_socketPairsKMS.end())
+  {
     NS_FATAL_ERROR( this << "No connection between KMS defined!"); //@toDo: include HTTP response!
     return NULL;
-
   } else {
-
-    std::pair<Ptr<Socket>, Ptr<Socket> > pair = i->second;
-    NS_ASSERT(pair.first);
-    NS_ASSERT(pair.second);
-    Ptr<Socket> sendSocket = pair.second;
-
-    return sendSocket;
+    KMSNode pair = i->second; 
+    Ptr<Socket> socket = pair.socket;
+    NS_ASSERT(socket);
+    return socket;
   }
 }
 
@@ -1123,11 +1120,16 @@ QKDKeyManagerSystemApplication::StartApplication() // Called at time specified b
   PrepareSinkSocket();
 }
 
+
 void
 QKDKeyManagerSystemApplication::PrepareSinkSocket() // Called at time specified by Start
 {
 
   NS_LOG_FUNCTION(this);
+
+  ////////////////////////////////////////
+  // SINK SOCKET APP-KMS
+  ////////////////////////////////////////
 
   // Create the sink socket if not already
   if(!m_sinkSocket){
@@ -1135,7 +1137,7 @@ QKDKeyManagerSystemApplication::PrepareSinkSocket() // Called at time specified 
     NS_LOG_FUNCTION(this << "Create the sink KMS socket!" << m_sinkSocket);
   }
 
-  NS_LOG_FUNCTION(this << "Sink KMS socket listens on " << Ipv4Address::GetAny() << " and port " << m_port << " for APP requests" );
+  NS_LOG_FUNCTION(this << "Sink APP-KMS socket listens on " << Ipv4Address::GetAny() << " and port " << m_port << " for APP requests" );
   //NS_LOG_FUNCTION(this << "Sink KMS socket listens on " << m_local << " and port " << m_port << " for APP requests" );
 
   //InetSocketAddress sinkAddress = InetSocketAddress(m_local, m_port);
@@ -1154,6 +1156,30 @@ QKDKeyManagerSystemApplication::PrepareSinkSocket() // Called at time specified 
     MakeCallback(&QKDKeyManagerSystemApplication::HandlePeerError, this)
   );
 
+  ////////////////////////////////////////
+  // SINK SOCKET KMS-KMS
+  ////////////////////////////////////////
+
+  // Create the sink socket if not already
+  if(!m_sinkSocketKMS){
+    m_sinkSocketKMS = Socket::CreateSocket(GetNode(), m_tid);
+    NS_LOG_FUNCTION(this << "Create the sink KMS socket!" << m_sinkSocketKMS);
+  }
+  NS_LOG_FUNCTION(this << "Sink KMS-KMS socket listens on " << Ipv4Address::GetAny() << " and port " << 8080 << " for KMS requests" );
+
+  InetSocketAddress sinkAddressKMS = InetSocketAddress(Ipv4Address::GetAny(), 8080); 
+  m_sinkSocketKMS->Bind(sinkAddressKMS);
+  m_sinkSocketKMS->Listen();
+  //m_sinkSocketKMS->ShutdownSend();
+  m_sinkSocketKMS->SetRecvCallback(MakeCallback(&QKDKeyManagerSystemApplication::HandleReadKMSs, this));
+  m_sinkSocketKMS->SetAcceptCallback(
+    MakeNullCallback<bool, Ptr<Socket>, const Address &>(),
+    MakeCallback(&QKDKeyManagerSystemApplication::HandleAcceptKMSs, this)
+  );
+  m_sinkSocketKMS->SetCloseCallbacks(
+    MakeCallback(&QKDKeyManagerSystemApplication::HandlePeerCloseKMSs, this),
+    MakeCallback(&QKDKeyManagerSystemApplication::HandlePeerErrorKMSs, this)
+  );
 }
 
 void
@@ -1422,7 +1448,7 @@ QKDKeyManagerSystemApplication::ProcessRequest(HTTPMessage headerIn, Ptr<Packet>
         NS_LOG_FUNCTION( this << "Transform payload" << msg1 ); //Testing @rm
         Ipv4Address dstKms = conn.GetDestinationKmsAddress(); //Destination KMS adress
         CheckSocketsKMS(dstKms); //Check connection to peer KMS!
-        Ptr<Socket> sendSocket = GetSendSocketKMS(dstKms); //Get send socket to peer KMS
+        Ptr<Socket> sendSocket = GetSocketKMS(dstKms); //Get send socket to peer KMS
         NS_ASSERT(sendSocket); //Check
 
         //Create packet
@@ -1957,7 +1983,7 @@ QKDKeyManagerSystemApplication::ProcessCloseRequest(std::string ksid, HTTPMessag
 
     NS_LOG_FUNCTION( this << "Releasing key stream association buffer. Synchronizing with peer KMS ..." );
     CheckSocketsKMS((it->second).dstKmsAddr ); //Check connection to peer KMS!
-    Ptr<Socket> sendSocket = GetSendSocketKMS((it->second).dstKmsAddr );
+    Ptr<Socket> sendSocket = GetSocketKMS((it->second).dstKmsAddr );
     NS_ASSERT(sendSocket);
 
     nlohmann::json msgBody;
@@ -2169,7 +2195,7 @@ QKDKeyManagerSystemApplication::ProcessRelayRequest(HTTPMessage headerIn, Ptr<So
       NS_LOG_FUNCTION(this << "Sending response" << packet->GetUid() << packet->GetSize() );
       Ipv4Address peerAddress = GetPeerKmAddress(previousNodeId);
       //Ipv4Address peerAddress = GetController()->GetRoute(previousNodeId).GetNextHopAddress();
-      Ptr<Socket> sendSocket = GetSendSocketKMS(peerAddress);
+      Ptr<Socket> sendSocket = GetSocketKMS(peerAddress);
       sendSocket->Send(packet);
 
       return;
@@ -2224,7 +2250,7 @@ QKDKeyManagerSystemApplication::ProcessRelayRequest(HTTPMessage headerIn, Ptr<So
     NS_ASSERT(packet);
 
     CheckSocketsKMS( nextHopAddress ); //Check connection to peer KMS!
-    Ptr<Socket> sendSocket = GetSendSocketKMS( nextHopAddress );
+    Ptr<Socket> sendSocket = GetSocketKMS( nextHopAddress );
 
     HttpQuery query;
     query.method_type = RELAY_KEYS; //Relay
@@ -2293,7 +2319,7 @@ QKDKeyManagerSystemApplication::ProcessRelayRequest(HTTPMessage headerIn, Ptr<So
     );
 
     //Ipv4Address peerAddress = GetController()->GetRoute(previousNodeId).GetNextHopAddress();
-    Ptr<Socket> sendSocket = GetSendSocketKMS(peerAddress);
+    Ptr<Socket> sendSocket = GetSocketKMS(peerAddress);
     NS_ASSERT(sendSocket);
     uint32_t outcome = sendSocket->Send(packet);
     NS_LOG_INFO(this << "outcome of sending packet:" << outcome);
@@ -2334,7 +2360,7 @@ QKDKeyManagerSystemApplication::ProcessRelayResponse(HTTPMessage headerIn)
     Ipv4Address peerAddress = GetPeerKmAddress(prevHop);
     //Ipv4Address peerAddress = GetController()->GetRoute(prevHop).GetNextHopAddress();
     CheckSocketsKMS(peerAddress);
-    Ptr<Socket> sendSocket = GetSendSocketKMS(peerAddress);
+    Ptr<Socket> sendSocket = GetSocketKMS(peerAddress);
     NS_ASSERT(sendSocket);
 
     NS_LOG_FUNCTION( this << "Forwarding response" << packet->GetUid() << packet->GetSize() );
@@ -2390,7 +2416,7 @@ QKDKeyManagerSystemApplication::NewAppRequest(std::string ksid)
     }
 
     CheckSocketsKMS((it->second).dstKmsAddr ); //Check connection to peer KMS!
-    Ptr<Socket> sendSocket = GetSendSocketKMS((it->second).dstKmsAddr );
+    Ptr<Socket> sendSocket = GetSocketKMS((it->second).dstKmsAddr );
     NS_ASSERT(sendSocket);
 
     nlohmann::json msgBody = {
@@ -2482,7 +2508,7 @@ QKDKeyManagerSystemApplication::ProcessNewAppRequest(HTTPMessage headerIn, Ptr<S
 
         Ipv4Address dstKms =(it->second).dstKmsAddr; //Read destination KMS address from the association entry
         CheckSocketsKMS( dstKms ); //Check connection to dstKms
-        Ptr<Socket> sendSocket = GetSendSocketKMS( dstKms ); //Obtain send socket object to reach dstKms
+        Ptr<Socket> sendSocket = GetSocketKMS( dstKms ); //Obtain send socket object to reach dstKms
         NS_ASSERT(sendSocket);
         sendSocket->Send(packet);
 
@@ -2532,7 +2558,7 @@ QKDKeyManagerSystemApplication::ProcessNewAppResponse(HTTPMessage headerIn, Ptr<
                 Http004AppQueryComplete(it->second[0].source_sae);
                 HttpKMSCompleteQuery(dstKms);
                 CheckSocketsKMS( dstKms ); //Check connection to dstKms
-                Ptr<Socket> sendSocket = GetSendSocketKMS( dstKms ); //Obtain send socket object to reach dstKms
+                Ptr<Socket> sendSocket = GetSocketKMS( dstKms ); //Obtain send socket object to reach dstKms
                 NS_ASSERT(sendSocket);
                 sendSocket->Send(packet);
             }else{
@@ -2570,7 +2596,7 @@ QKDKeyManagerSystemApplication::RegisterRequest(std::string ksid)
 
     Ipv4Address dstKms =(it->second).dstKmsAddr; //Read destination KMS address from the association entry
     CheckSocketsKMS( dstKms ); //Check connection to dstKms
-    Ptr<Socket> sendSocket = GetSendSocketKMS( dstKms ); //Obtain send socket object to reach dstKms
+    Ptr<Socket> sendSocket = GetSocketKMS( dstKms ); //Obtain send socket object to reach dstKms
     NS_ASSERT(sendSocket);
 
     std::string headerUri = "http://" + GetAddressString(dstKms);
@@ -2625,7 +2651,7 @@ QKDKeyManagerSystemApplication::ProcessRegisterRequest( HTTPMessage headerIn , s
     NS_ASSERT(packet);
 
     CheckSocketsKMS( it->second.dstKmsAddr ); //Check connection to peer KMS!
-    Ptr<Socket> sendSocket = GetSendSocketKMS( it->second.dstKmsAddr );
+    Ptr<Socket> sendSocket = GetSocketKMS( it->second.dstKmsAddr );
     NS_ASSERT(sendSocket);
     sendSocket->Send(packet);
 
@@ -2793,7 +2819,7 @@ QKDKeyManagerSystemApplication::ProcessFillRequest(HTTPMessage headerIn, std::st
   //Ipv4Address peerKMAddress = GetController()->GetRoute(peerNodeId).GetNextHopAddress();
   Ipv4Address peerKMAddress = GetPeerKmAddress(peerNodeId);
   CheckSocketsKMS(peerKMAddress);
-  Ptr<Socket> sendSocket = GetSendSocketKMS(peerKMAddress);
+  Ptr<Socket> sendSocket = GetSocketKMS(peerKMAddress);
   NS_ASSERT(sendSocket);
   sendSocket->Send(packet);
 }
@@ -2802,8 +2828,7 @@ void
 QKDKeyManagerSystemApplication::ProcessFillResponse(HTTPMessage headerIn, Ipv4Address from)
 {
   NS_LOG_FUNCTION(this << headerIn.GetRequestUri());
-
-  //Ipv4Address peerAddress = GetDestinationKmsAddress(socket);
+ 
   Ipv4Address dstKms { ReadUri(headerIn.GetRequestUri())[0].c_str() };
   auto it = m_httpRequestsQueryKMS.find(dstKms);
   for(;;){
@@ -3001,7 +3026,7 @@ QKDKeyManagerSystemApplication::ProcessSKeyCreateRequest(HTTPMessage headerIn, P
       QKDLocationRegisterEntry conn = GetController()->GetRoute(peerNodeId); //Get route information
       Ipv4Address dstKms = conn.GetDestinationKmsAddress();
       CheckSocketsKMS( dstKms ); //Check connection to peer KMS!
-      Ptr<Socket> sendSocket = GetSendSocketKMS( dstKms );
+      Ptr<Socket> sendSocket = GetSocketKMS( dstKms );
       NS_ASSERT(sendSocket);
       sendSocket->Send(packet);
 
@@ -3092,7 +3117,7 @@ QKDKeyManagerSystemApplication::ProcessKMSCloseRequest(HTTPMessage headerIn, Ptr
 
         NS_LOG_FUNCTION(this << "packet sent " << packet->GetUid() << packet->GetSize());
         CheckSocketsKMS( it->second.dstKmsAddr ); //Check connection to peer KMS!
-        Ptr<Socket> sendSocket = GetSendSocketKMS( it->second.dstKmsAddr );
+        Ptr<Socket> sendSocket = GetSocketKMS( it->second.dstKmsAddr );
         NS_ASSERT(sendSocket);
         sendSocket->Send(packet);
 
@@ -3139,7 +3164,7 @@ QKDKeyManagerSystemApplication::ProcessKMSCloseRequest(HTTPMessage headerIn, Ptr
 
         NS_LOG_FUNCTION(this << "packet sent" << packet->GetUid() << packet->GetSize());
         CheckSocketsKMS( it->second.dstKmsAddr ); //Check connection to peer KMS!
-        Ptr<Socket> sendSocket = GetSendSocketKMS( it->second.dstKmsAddr );
+        Ptr<Socket> sendSocket = GetSocketKMS( it->second.dstKmsAddr );
         NS_ASSERT(sendSocket);
         sendSocket->Send(packet);
 
@@ -3427,26 +3452,7 @@ QKDKeyManagerSystemApplication::RemoveProxyQuery(std::string reqId)
     m_httpProxyRequests.erase(it);
 
 }
-
-
-Ipv4Address
-QKDKeyManagerSystemApplication::GetDestinationKmsAddress(Ptr<Socket> socket)
-{
-  NS_LOG_FUNCTION( this );
-  Ipv4Address dstKMSAddress;
-
-  std::map<Ipv4Address, std::pair<Ptr<Socket>, Ptr<Socket> > >::iterator it;
-  for(it = m_socketPairsKMS.begin(); it != m_socketPairsKMS.end(); ++it)
-  {
-    if((it->second).first == socket) {
-      dstKMSAddress = it->first;
-      break;
-    }
-  }
-
-  return dstKMSAddress;
-}
-
+ 
 uint32_t
 QKDKeyManagerSystemApplication::GetMaxKeyPerRequest(){
   return m_maxKeyPerRequest;
@@ -3519,39 +3525,6 @@ QKDKeyManagerSystemApplication::FetchRequestType(std::string s)
 
   return output;
 }
-
-
-void
-QKDKeyManagerSystemApplication::EstablishKMLinkSockets(Ipv4Address remoteKmAddress)
-{
-  NS_LOG_FUNCTION(this << "Create sink socket to listen requests exchanged between KMSs!");
-
-  InetSocketAddress sinkAddress = InetSocketAddress(m_local, 8080);
-  Ptr<Socket> sinkSocket = Socket::CreateSocket(GetNode(), m_tid);
-  sinkSocket->Bind(sinkAddress);
-  sinkSocket->Listen();
-  //sinkSocket->ShutdownSend();
-  sinkSocket->SetRecvCallback(MakeCallback(&QKDKeyManagerSystemApplication::HandleReadKMSs, this));
-  sinkSocket->SetAcceptCallback(
-    MakeNullCallback<bool, Ptr<Socket>, const Address &>(),
-    MakeCallback(&QKDKeyManagerSystemApplication::HandleAcceptKMSs, this)
-  );
-  sinkSocket->SetCloseCallbacks(
-    MakeCallback(&QKDKeyManagerSystemApplication::HandlePeerCloseKMSs, this),
-    MakeCallback(&QKDKeyManagerSystemApplication::HandlePeerErrorKMSs, this)
-  );
-
-  //Store this socket for further use. Later we will create the send socket as well
-  Ptr<Socket> sendSocket = 0;
-  m_socketPairsKMS.insert(
-    std::make_pair(
-      remoteKmAddress,
-      std::make_pair(sinkSocket, sendSocket)
-    )
-  );
-
-}
-
 
 nlohmann::json
 QKDKeyManagerSystemApplication::Check014GetKeyRequest(

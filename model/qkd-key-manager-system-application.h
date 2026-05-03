@@ -282,12 +282,7 @@ public:
    * @param moduleId local QKD module ID
    */
   void RegisterQKDModule(uint32_t dstId, std::string moduleId);
-
-  /**
-   * @brief Create sink socket to listen requests exchanged between KMSs
-   * @param remoteKmAddress Ipv4 address of remote key manager
-   */
-  void EstablishKMLinkSockets(Ipv4Address remoteKmAddress);
+ 
 
   /**
    * @brief Get all QBuffers created on the KMS. Function used for plotting QKD Graphs
@@ -295,12 +290,6 @@ public:
   std::vector<Ptr<QBuffer> >  GetQBuffersVector(){
     return m_qbuffersVector;
   }
-  
-  /**
-   * @brief Prepare send socket to communicate with peer KMS Application
-   * @param uint32_t destination SAE ID
-   */
-  void CheckSocketsKMS(Ipv4Address dstSaeId);
 
 protected:
 
@@ -613,6 +602,11 @@ private:
                         //keyId                  start      end
   };
 
+  struct KMSNode{
+    Ipv4Address address;
+    Ptr<Socket> socket;  
+  };
+
   struct HttpQuery
   {
     RequestType method_type; //For every query!
@@ -673,6 +667,8 @@ private:
 
   Ptr<Socket> m_sinkSocket;       // Associated socket
 
+  Ptr<Socket> m_sinkSocketKMS;       // Associated socket KMS
+
   Ipv4Address m_local;        //!< Local address to bind to
 
   uint32_t m_port;        //!< Local port to bind to
@@ -711,7 +707,7 @@ private:
   TracedCallback<Ptr<const Packet>, const Address &> m_rxTrace;
   TracedCallback<Ptr<const Packet> > m_txTrace;
   TracedCallback<Ptr<const Packet>, const Address &> m_rxTraceKMSs;
-  TracedCallback<Ptr<const Packet> > m_txTraceKMSs;
+  TracedCallback<Ptr<const Packet>, const uint32_t& > m_txTraceKMSs;
 
   TracedCallback<const std::string&, const std::string&, const uint32_t&> m_qkdKeyGeneratedTrace;   //Generated key material!
   TracedCallback<const std::string&, const std::string&, const uint32_t&> m_keyServedTrace; //Total amount of key material served by KMS
@@ -731,10 +727,12 @@ private:
   std::unordered_map<Address, Ptr<Packet>, AddressHash> m_buffer; //!< Buffer for received packets(TCP segmentation)
   std::unordered_map<Address, Ptr<Packet>, AddressHash> m_bufferKMS; //!< Buffer for received packets(TCP segmentation)
 
-  std::map<Ipv4Address, std::pair<Ptr<Socket>, Ptr<Socket> > > m_socketPairsKMS;  //!< we do not know which KMS is going to initialize new TCP connection to peer KMS. Therefore, we have two sockets(sink and send) per node.
+  std::map<Ipv4Address, KMSNode > m_socketPairsKMS;
+
 
   Ptr<Node> m_node; //<! node on which KMS is installed
   std::map<Ptr<Socket>, Ptr<Packet> > m_packetQueues; //!< Buffering unsend messages due to connection problems
+  std::map<Ptr<Socket>, Ptr<Packet> > m_packetQueuesKMS; //!< Buffering unsend messages due to connection problems
 
   Ptr<QKDKMSQueueLogic> m_queueLogic; //!< KMS Queue Logic for ETSI 004 QoS handling
 
@@ -814,11 +812,17 @@ private:
   Ipv4Address GetDestinationKmsAddress(Ptr<Socket> socket);
 
   /**
+   * @brief Prepare send socket to communicate with peer KMS Application
+   * @param uint32_t destination SAE ID
+   */
+  void CheckSocketsKMS(Ipv4Address dstSaeId);
+
+  /**
    * @brief Obtain send socket
    * @param kmsDstAddress Address of the destination KMS
    * @return Socket send socket
    */
-  Ptr<Socket> GetSendSocketKMS(Ipv4Address kmsDstAddress);
+  Ptr<Socket> GetSocketKMS(Ipv4Address kmsDstAddress);
 
   /**
    * @brief Convert packet to string

@@ -192,13 +192,7 @@ namespace ns3 {
             kmRemote->GetId(),
             idLocal
         );
-
-        GetKeyManagerSystemApplication( GetLocalKMNode() )->EstablishKMLinkSockets(
-            GetKeyManagerSystemApplication( kmRemote )->GetAddress()
-        );
-        GetKeyManagerSystemApplication( kmRemote )->EstablishKMLinkSockets(
-            GetKeyManagerSystemApplication( GetLocalKMNode() )->GetAddress()
-        );
+ 
     }
 
     void
