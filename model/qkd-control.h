@@ -1,11 +1,12 @@
 /*
- * Copyright(c) 2025 University of Sarajevo, Faculty of Electrical Engineering, 
- * Department of Telecommunications, Zmaja od Bosne bb, 71000 Sarajevo, Bosnia and Herzegovina
- * www.tk.etf.unsa.ba
+ * Copyright(c) 2022 DOTFEESA www.tk.etf.unsa.ba
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ *
  *
  *
  * Authors: Emir Dervisevic <emir.dervisevic@etf.unsa.ba>
- *          Miralem Mehic <miralem.mehic@etf.unsa.ba>
+ *          Miralem Mehic <miralem.mehic@ieee.org>
  */
 
 #ifndef QKDCONTROL_H
@@ -90,7 +91,8 @@ namespace ns3 {
         * @brief Get the type ID.
         * @return the object TypeId
         */
-        static TypeId GetTypeId(); 
+        static TypeId GetTypeId();
+
 
         /**
         * @brief Constructor
@@ -140,6 +142,8 @@ namespace ns3 {
         std::string GetLocalKMId() const;
 
         Ipv4Address GetLocalKMAddress() const;
+
+        std::vector<Ipv4Address> GetLocalKMAddresses() const;
 
         std::vector<uint32_t> GetRemoteKmNodeIds() const;
 
@@ -216,6 +220,7 @@ namespace ns3 {
 
         QKDLocationRegisterEntry GetRoute(uint32_t remoteKmId);
 
+        QKDLocationRegisterEntry GetRouteByKMSAddress(Ipv4Address dstKmsAddress);        
 
     protected:
         /**

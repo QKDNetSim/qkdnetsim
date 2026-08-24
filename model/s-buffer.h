@@ -1,10 +1,11 @@
 /*
- * Copyright(c) 2025 University of Sarajevo, Faculty of Electrical Engineering, 
- * Department of Telecommunications, Zmaja od Bosne bb, 71000 Sarajevo, Bosnia and Herzegovina
- * www.tk.etf.unsa.ba
+ * Copyright(c) 2022 DOTFEESA www.tk.etf.unsa.ba
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  *
  *
- * Authors: Miralem Mehic <miralem.mehic@etf.unsa.ba>
+ *
+ * Authors: Miralem Mehic <miralem.mehic@ieee.org>
  *          Emir Dervisevic <emir.dervisevic@etf.unsa.ba>
  */
 
@@ -55,9 +56,21 @@ namespace ns3 {
       enum Type {
         LOCAL_SBUFFER,
         RELAY_SBUFFER,
-        STREAM_SBUFFER,
-        E2E_SESSION,
-        LOCAL_SESSION
+        PQC_SBUFFER,
+        STREAM_SBUFFER
+      };
+      
+      struct MixedKey
+      {
+        Ptr<QKDKey> mixedKey;
+
+        std::vector<std::string> qkdKeyIds;
+        std::vector<uint32_t> qkdStartBits;
+        std::vector<uint32_t> qkdEndBits;
+
+        std::vector<std::string> pqcKeyIds;
+        std::vector<uint32_t> pqcStartBits;
+        std::vector<uint32_t> pqcEndBits;
       };
 
       /**
@@ -178,7 +191,7 @@ namespace ns3 {
 
 
       /**
-       * @brief Get key with given size
+       * @brief Get key with given size. It can return key of ANY status!
        * @param size size of the key
        * @return Ptr on QKD key
        *
@@ -240,8 +253,7 @@ namespace ns3 {
 
       void SetRelayState(bool relayActive);
 
-      bool IsRelayActive();
-  
+      bool IsRelayActive(); 
 
       /**
        * @brief get key from QBuffer
@@ -259,10 +271,21 @@ namespace ns3 {
        * obtained from m_keys, to account for this key usage.
        */
       void LogUpdate(uint32_t diffValue, bool positive) override;
- 
+
+      void StoreMixedKey(std::string& mKeyId,  SBuffer::MixedKey& mKey);
+  
+      bool GetMixedKey(std::string& mKeyId, SBuffer::MixedKey& mKey);
+
+      void SetKsid(std::string &ksid);
+
+      std::string GetKsid();
+
     private:
-      
+
+
       SBuffer::Type    m_type; //!< S-Buffer type
+
+      std::string m_ksid; //!< Associated ETSI004 KSID value in case of STREAM Sbuffer
 
       uint32_t    m_currentStreamIndex; //!< The last index when the S-Buffer is used for key stream sessions.
 
@@ -271,6 +294,8 @@ namespace ns3 {
       uint32_t    m_notReadyBitCount; //!< Amount of key material stored that are not in READY state
 
       bool        m_relayActive; //!< The state of S-Buffer will not trigger relay if relay is active
+
+      std::map<std::string, MixedKey>       m_mixed_keys; //!< Created keys which are combined from QKD and PQC
 
       std::map<uint32_t, Ptr<QKDKey> >      m_stream_keys; //!< Key stream session
 
@@ -284,6 +309,7 @@ namespace ns3 {
 
       uint32_t m_defaultKeySizeSBufferDefault;    //<! Default key size for this QKD Buffer (SBuffer default)
 
+      uint32_t m_log; //<! Debuging log value;
   };
 }
 

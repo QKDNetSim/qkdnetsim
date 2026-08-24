@@ -1,10 +1,11 @@
 /*
- * Copyright(c) 2025 University of Sarajevo, Faculty of Electrical Engineering, 
- * Department of Telecommunications, Zmaja od Bosne bb, 71000 Sarajevo, Bosnia and Herzegovina
- * www.tk.etf.unsa.ba
+ * Copyright(c) 2022 DOTFEESA www.tk.etf.unsa.ba
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  *
  *
- * Authors: Miralem Mehic <miralem.mehic@etf.unsa.ba>
+ *
+ * Authors: Miralem Mehic <miralem.mehic@ieee.org>
  *          Emir Dervisevic <emir.dervisevic@etf.unsa.ba>
  */
 
@@ -147,11 +148,18 @@ namespace ns3 {
       virtual bool StoreKey(Ptr <QKDKey> key = nullptr, bool fireTraces = true);
 
       /**
-       * @brief get key from QBuffer
+       * @brief get key from QBuffer. It can return key of ANY status!
        * @param keyID key identifier
        * @return Ptr to the key
        */
       virtual Ptr<QKDKey> GetKey(std::string keyID = "", bool fireTraces = true);
+
+      /**
+       * @brief check status of the key in buffer
+       * @param keyID key identifier
+       * @return key status value
+       */
+      virtual uint32_t GetKeyStatus(std::string keyID);
 
       /**
        * @brief get number of stored keys

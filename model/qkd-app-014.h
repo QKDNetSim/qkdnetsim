@@ -1,10 +1,12 @@
 /*
- * Copyright(c) 2025 University of Sarajevo, Faculty of Electrical Engineering, 
- * Department of Telecommunications, Zmaja od Bosne bb, 71000 Sarajevo, Bosnia and Herzegovina
- * www.tk.etf.unsa.ba
+ * Copyright(c) 2020 DOTFEESA www.tk.etf.unsa.ba
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ *
+ *
  *
  * Author:  Emir Dervisevic <emir.dervisevic@etf.unsa.ba>
- *          Miralem Mehic <miralem.mehic@etf.unsa.ba>
+ *          Miralem Mehic <miralem.mehic@ieee.org>
  */
 #ifndef QKD014_SEND_H
 #define QKD014_SEND_H
@@ -38,7 +40,7 @@ class Packet;
 
 /**
  * @ingroup applications
- * @defgroup qkd QKDApp014
+ * @defgroup QKDApp014 QKDApp014
  *
  * The QKDApp014 application implements communication
  * to Local Key Management System and it establish secure
@@ -46,7 +48,7 @@ class Packet;
  */
 
 /**
- * @ingroup qkd
+ * @ingroup QKDApp014
  *
  * @brief Establish secure communication on application lavel to use the key and test LKSM
  *

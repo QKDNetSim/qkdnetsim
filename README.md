@@ -19,63 +19,188 @@ The detailed documentation is available on webpage https://www.qkdnetsim.info
 - The code has been successfully tested on Ubuntu 22.04. 
 - QKDNetSim v2.0 module is ***NOT*** compatible with QKDNetSim version 1.0 (https://v1.qkdnetsim.info). QKDNetSim v2.0 module was written independently and from scratch.
 
-
 ## Installation
 
-QKDNetSim includes QKDEncryptor class that relies on cryptographic algorithms and schemes from Crypto++ open-source C++ class cryptographic library. Currently, QKD crypto supports several cryptographic algorithms and cryptographic hashes, including One-Time Pad (OTP) cipher, Advanced Encryption Standard (AES) block cipher, VMAC message authentication code (MAC) algorithm, and others.
- 
-1. Install prerequisites libreries:
+QKDNetSim includes the `QKDEncryptor` class, which relies on cryptographic algorithms and schemes provided by the [Crypto++](https://www.cryptopp.com/) open-source C++ cryptographic library.
 
-	```bash
-	sudo apt-get install gcc g++ python3 python3-dev mercurial bzr gdb valgrind gsl-bin doxygen graphviz imagemagick -y  && \
-	sudo apt-get install libboost-all-dev git flex bison tcpdump sqlite sqlite3 -y   && \
-	sudo apt-get install libsqlite3-dev libxml2 libxml2-dev libgtk2.0-0 libgtk2.0-dev uncrustify -y  && \
-	sudo apt-get install libcrypto++-dev libcrypto++-doc libcrypto++-utils unzip wget uuid-dev cmake -y
-    ```
+QKDNetSim currently supports several cryptographic algorithms and cryptographic hash functions, including the One-Time Pad (OTP) cipher, Advanced Encryption Standard (AES) block cipher, VMAC message authentication code (MAC) algorithm, and others.
 
-2. Install the NS-3 of version 3.46 from the
+### 1. Install prerequisites
 
-	```bash
-	git clone -b ns-3.46 https://gitlab.com/nsnam/ns-3-dev.git
-    ```
+Install the required libraries and tools:
 
-3. Download qkdnetsim in contrib directory
+```bash
+sudo apt-get update
 
-	```bash
-	cd ns-3-dev/contrib
-    git clone -b master https://github.com/QKDNetSim/qkdnetsim
-    ```
+sudo apt-get install -y \
+    gcc \
+    g++ \
+    python3 \
+    python3-dev \
+    mercurial \
+    bzr \
+    gdb \
+    valgrind \
+    gsl-bin \
+    doxygen \
+    graphviz \
+    imagemagick \
+    libboost-all-dev \
+    git \
+    flex \
+    bison \
+    tcpdump \
+    sqlite \
+    sqlite3 \
+    libsqlite3-dev \
+    libxml2 \
+    libxml2-dev \
+    libgtk2.0-0 \
+    libgtk2.0-dev \
+    uncrustify \
+    libcrypto++-dev \
+    libcrypto++-doc \
+    libcrypto++-utils \
+    unzip \
+    wget \
+    uuid-dev \
+    cmake
+```
 
-4. Check patches. They should report no error
+### 2. Install NS-3.46
 
-	```bash
-    cd ..
-	git apply --check contrib/qkdnetsim/patches/gnuplot_cc.patches
-	git apply --check contrib/qkdnetsim/patches/gnuplot_h.patches
-    ```
+QKDNetSim requires **NS-3.46**.
 
-5. Apply patches
+Clone the NS-3.46 source code:
 
-	```bash
-	git apply  contrib/qkdnetsim/patches/gnuplot_h.patches
-	git apply  contrib/qkdnetsim/patches/gnuplot_cc.patches
-    ```
+```bash
+git clone -b ns-3.46 https://gitlab.com/nsnam/ns-3-dev.git
+cd ns-3-dev
+```
 
-6. Configure NS-3 with qkdnetsim
+### 3. Download QKDNetSim
 
-	```bash
-	./ns3 configure --enable-mpi --enable-examples
-    ```
+Clone QKDNetSim into the NS-3 `contrib` directory:
 
-7. Run qkdnetsim examples
+```bash
+cd contrib
+git clone -b master https://github.com/QKDNetSim/qkdnetsim.git
+cd ..
+```
 
-	```bash
-	./ns3 run examples_qkdnetsim_etsi_014
-	./ns3 run examples_qkdnetsim_etsi_004
-	./ns3 run examples_qkdnetsim_secoqc
-	./ns3 run examples_qkdnetsim_etsi_combined_input
-	./ns3 run examples_qkdnetsim_etsi_014_emulation_tap
-    ```
+### 4. Check QKDNetSim patches
+
+Before applying the patches, check that they can be applied successfully:
+
+```bash
+git apply --check contrib/qkdnetsim/patches/gnuplot_cc.patches
+git apply --check contrib/qkdnetsim/patches/gnuplot_h.patches
+```
+
+These commands should complete without reporting any errors.
+
+### 5. Apply QKDNetSim patches
+
+Apply the required patches:
+
+```bash
+git apply contrib/qkdnetsim/patches/gnuplot_h.patches
+git apply contrib/qkdnetsim/patches/gnuplot_cc.patches
+```
+
+### 6. Configure NS-3
+
+Configure NS-3 with QKDNetSim:
+
+```bash
+./ns3 configure --enable-mpi --enable-examples
+```
+
+### 7. Run QKDNetSim examples
+
+Run the available QKDNetSim examples:
+
+```bash
+./ns3 run examples_qkdnetsim_etsi_014
+./ns3 run examples_qkdnetsim_etsi_004
+./ns3 run examples_qkdnetsim_secoqc
+./ns3 run examples_qkdnetsim_etsi_combined_input
+./ns3 run examples_qkdnetsim_etsi_014_emulation_tap
+```
+
+---
+
+## Optional: PQC Support
+
+QKDNetSim can optionally be used with **Post-Quantum Cryptography (PQC)** keys through [liboqs](https://github.com/open-quantum-safe/liboqs) and [liboqs-cpp](https://github.com/open-quantum-safe/liboqs-cpp).
+
+PQC support is **NOT required** to run the standard QKDNetSim examples.
+
+### 1. Install liboqs
+
+Clone and build `liboqs`:
+
+```bash
+git clone --depth=1 https://github.com/open-quantum-safe/liboqs
+
+cmake -S liboqs -B liboqs/build -DBUILD_SHARED_LIBS=ON
+cmake --build liboqs/build --parallel 8
+cmake --build liboqs/build --target install
+
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
+```
+
+### 2. Install liboqs-cpp
+
+Clone and build `liboqs-cpp`:
+
+```bash
+git clone --depth=1 https://github.com/open-quantum-safe/liboqs-cpp
+
+cmake -S liboqs-cpp -B liboqs-cpp/build
+cmake --build liboqs-cpp/build --target install
+cmake --build liboqs-cpp/build --target examples --parallel 8
+```
+
+### 3. Enable liboqs-cpp in QKDNetSim
+
+Open:
+
+```text
+ns-3-dev/contrib/qkdnetsim/model/qkd-key-manager-system-application.h
+```
+
+Find:
+
+```cpp
+//#include <liboqs-cpp/oqs_cpp.hpp>
+```
+
+and uncomment it:
+
+```cpp
+#include <liboqs-cpp/oqs_cpp.hpp>
+```
+
+### 4. Configure NS-3
+
+After enabling PQC support, configure NS-3 again:
+
+```bash
+./ns3 configure --enable-mpi --enable-examples
+```
+
+### 5. Run the QKD + PQC example
+
+Run the QKD + PQC example:
+
+```bash
+./ns3 run "examples_qkdnetsim_secoqc_qkd_and_pqc --pqc_enabled=1 --pqc_c=1 --numberOfETSI004ApplicationLinks=1"
+```
+
+For more information about the QKDNetSim PQC implementation and its parameters, check:
+https://doi.org/10.1109/JSAC.2026.3722598
+
 
 ## Authors
 
@@ -108,6 +233,7 @@ Contact us via email (miralem[at]mehic.info).
 - Dervisevic, E., Tankovic, A., Fazel, E., Kompella, R., Fazio, P., Voznak, M. and Mehic, M., 2025. Quantum Key Distribution Networks – Key Management: A Survey. ACM Computing Surveys, 57(10), pp. 1–36, doi: https://www.doi.org/10.1145/3730575
 - Mehic, M., Dervisevic, E., Burdiak, P., Lipovac, V., Fazio, P. and Voznak, M., 2024. Emulation of quantum key distribution networks. IEEE Network, 39(1), pp.116-123. doi: https://www.doi.org/10.1109/MNET.2024.3398404
 - Mehic, M., Dervisevic, E., Fazio, P. and Voznak, M., 2025. Virtual Quantum Key Distribution Network Ecosystem: The National Czech QKD Network. IEEE Network., 39(3), pp.173-179. doi: https://www.doi.org/10.1109/MNET.2025.3540705
+- Mehic, M., Rass, S., Jakovlev, S., Niemiec, M., Fazio, P. and Voznak, M., 2026. On Mixing of Quantum Key Distribution and Post-Quantum Cryptographic Keys: Min-Entropy Bounds, Provisioning Policies, and Network-Oriented Trade-offs. IEEE Journal on Selected Areas in Communications. doi: https://doi.org/10.1109/JSAC.2026.3722598
 
 ## Acknowledgment 
 

@@ -1,9 +1,11 @@
 /*
- * Copyright(c) 2025 University of Sarajevo, Faculty of Electrical Engineering, 
- * Department of Telecommunications, Zmaja od Bosne bb, 71000 Sarajevo, Bosnia and Herzegovina
- * www.tk.etf.unsa.ba
+ * Copyright (c) 2020 DOTFEESA www.tk.etf.unsa.ba
  *
- * Author: Miralem Mehic <miralem.mehic@etf.unsa.ba>
+ * SPDX-License-Identifier: GPL-2.0-only
+ *
+ *
+ *
+ * Author: Miralem Mehic <miralem.mehic@ieee.org>
  */
 
 #include "ns3/core-module.h"
@@ -20,42 +22,14 @@
 NS_LOG_COMPONENT_DEFINE ("QKDAppHelper");
 
 namespace ns3 {
-
-uint32_t QKDAppHelper::appCounter = 0;
-
-QKDAppHelper::QKDAppHelper ()
-{
-    m_factory_qkd_app.SetTypeId ("ns3::QKDApp014");
-
-    Address sinkAddress (InetSocketAddress (Ipv4Address::GetAny (), 80));
-    m_factory_kms_app.SetTypeId ("ns3::QKDKeyManagerSystemApplication");
-    m_factory_lr_app.SetTypeId ("ns3::QKDLocationRegister");
+  
+QKDAppHelper::QKDAppHelper () 
+{  
+    m_factory_kms_app.SetTypeId ("ns3::QKDKeyManagerSystemApplication"); 
+    m_factory_qkd004_app.SetTypeId ("ns3::QKDApp004"); 
+    m_factory_qkd014_app.SetTypeId ("ns3::QKDApp014");
     m_factory_postprocessing_app.SetTypeId ("ns3::QKDPostprocessingApplication");
 }
-
-QKDAppHelper::QKDAppHelper (std::string protocol, Ipv4Address master, Ipv4Address slave, uint32_t keyRate)
-{
-    SetSettings(protocol, master, slave, keyRate);
-}
-
-void
-QKDAppHelper::SetSettings ( std::string protocol, Ipv4Address master, Ipv4Address slave, uint32_t keyRate)
-{
-    uint16_t port;
-
-    /*************************
-    //      MASTER
-    **************************/
-    port = 80;
-    Address sinkAddress (InetSocketAddress (Ipv4Address::GetAny (), port));
-    Address masterAppRemoteAddress (InetSocketAddress (master, port));
-    Address slaveAppRemoteAddress (InetSocketAddress (slave, port));
-    m_factory_kms_app.SetTypeId ("ns3::QKDKeyManagerSystemApplication");
-
-    m_protocol = protocol;
-
-}
-
 
 void
 QKDAppHelper::SetAttribute ( std::string mFactoryName, std::string name, const AttributeValue &value)
@@ -64,26 +38,18 @@ QKDAppHelper::SetAttribute ( std::string mFactoryName, std::string name, const A
         m_factory_kms_app.Set (name, value);
     } else if(mFactoryName == "postprocessing") {
         m_factory_postprocessing_app.Set (name, value);
-    } else if(mFactoryName == "app") {
-        m_factory_qkd_app.Set (name, value);
+    } else if(mFactoryName == "app014") {
+        m_factory_qkd014_app.Set (name, value);
+    } else if(mFactoryName == "app004") {
+        m_factory_qkd004_app.Set (name, value);
     }
 }
 
 void
 QKDAppHelper::InstallKeyManager (Ptr<Node> node, Ipv4Address kmsAddress, uint32_t port, Ptr<QKDControl> controller)
 {
-    NS_LOG_FUNCTION(this << "Node ID" << node->GetId() << "Controller ID" << controller->GetNode()->GetId());
-    Ptr<Application> appKMS = m_factory_kms_app.Create <Application> ();
-    node->AddApplication (appKMS);
-
-    Ptr<QKDKeyManagerSystemApplication> kms = appKMS->GetObject<QKDKeyManagerSystemApplication> ();
-    kms->SetId(UUID::Sequential().string()); //Assign a unique identifier (UUID v1)
-    kms->SetNode(node);
-    kms->SetAddress(kmsAddress);
-    kms->SetPort(port);
-    kms->SetController(controller);
+    InstallKeyManager(node, kmsAddress, port, controller, 0); 
 }
-
 void
 QKDAppHelper::InstallKeyManager (Ptr<Node> node, Ipv4Address kmsAddress, uint32_t port, Ptr<QKDControl> controller, Ptr<QCenController> cenController)
 {
@@ -92,12 +58,15 @@ QKDAppHelper::InstallKeyManager (Ptr<Node> node, Ipv4Address kmsAddress, uint32_
     node->AddApplication (appKMS);
 
     Ptr<QKDKeyManagerSystemApplication> kms = appKMS->GetObject<QKDKeyManagerSystemApplication> ();
+    NS_LOG_FUNCTION(this << "Node ID" << node->GetId() << "Controller ID" << controller->GetNode()->GetId());
     kms->SetId(UUID::Sequential().string()); //Assign a unique identifier (UUID v1)
     kms->SetNode(node);
     kms->SetAddress(kmsAddress);
     kms->SetPort(port);
     kms->SetController(controller);
-    kms->SetCenController(cenController);
+    if(cenController)
+        kms->SetCenController(cenController);
+
 }
 
 ApplicationContainer
@@ -241,6 +210,11 @@ QKDAppHelper::InstallPostProcessing (
     DynamicCast<QKDPostprocessingApplication> (appSlave)->SetId (slaveModuleId);
     DynamicCast<QKDPostprocessingApplication> (appSlave)->SetPeerId (masterModuleId);
 
+    NS_LOG_FUNCTION(this << "node1:" << node1->GetId());
+    NS_LOG_FUNCTION(this << "node2:" << node2->GetId());
+    NS_LOG_FUNCTION(this << "control1->GetObject<QKDControl> ()->GetLocalKMNode():" << control1->GetObject<QKDControl> ()->GetLocalKMNode()->GetId());
+    NS_LOG_FUNCTION(this << "control2->GetObject<QKDControl> ()->GetLocalKMNode():" << control2->GetObject<QKDControl> ()->GetLocalKMNode()->GetId());
+
     //Register QKD modules / PP applications at QKDN controller!
     control1->GetObject<QKDControl> ()->RegisterQKDModulePair (
         node1,          //Local QKD Module Node
@@ -326,28 +300,19 @@ QKDAppHelper::InstallQKDApplication
      * Create unique identifiers
      */
     std::string aliceId {UUID::Sequential().string()};
-    std::string bobId {UUID::Sequential().string()};
+    std::string bobId   {UUID::Sequential().string()};
     if(!masterUUID.empty() && !slaveUUID.empty()){
         aliceId = masterUUID;
         bobId = slaveUUID;
     }
 
-    std::cout << "\n\nCRYPTOGRAPHIC APPLICATION PAIR INSTALLED\n"
-            << "\tMaster ID:\t" << aliceId << "\tLocal KMS node:\t" << control1->GetObject<QKDControl> ()->GetLocalKMNodeId()
-            << "\n\tSlave ID:\t" << bobId << "\tLocal KMS node:\t" << control2->GetObject<QKDControl> ()->GetLocalKMNodeId()
-            << "\n\tData rate:\t" << dataRate << "\tPacket size:\t" << packetSize;
 
-    NS_LOG_FUNCTION(this << "\n\nCRYPTOGRAPHIC APPLICATION PAIR INSTALLED\n"
-            << "\tMaster ID:\t" << aliceId << "\tLocal KMS node:\t" << control1->GetObject<QKDControl> ()->GetLocalKMNodeId()
-            << "\n\tSlave ID:\t" << bobId << "\tLocal KMS node:\t" << control2->GetObject<QKDControl> ()->GetLocalKMNodeId()
-            << "\n\tData rate:\t" << dataRate << "\tPacket size:\t" << packetSize;
-    );
+    if(applicationType == "etsi014")
+    { 
+        Ptr<Application> appAlice = m_factory_qkd014_app.Create<Application> (); 
+        Ptr<Application> appBob = m_factory_qkd014_app.Create<Application> (); 
 
-    if(applicationType == "etsi014"){
-
-        Ptr<QKDApp014> appAlice = CreateObject<QKDApp014> ();
-        Ptr<QKDApp014> appBob = CreateObject<QKDApp014> ();
-        appAlice->Setup(
+        DynamicCast<QKDApp014> (appAlice)->Setup(
             connectionType,
             aliceId,    //This application ID
             bobId,   //Peer application ID
@@ -358,9 +323,7 @@ QKDAppHelper::InstallQKDApplication
             DataRate (dataRate),
             "alice"
         );
-        node1->AddApplication (appAlice);
-
-        appBob->Setup(
+        DynamicCast<QKDApp014> (appBob)->Setup(
             connectionType,
             bobId,  //This application ID
             aliceId, //Peer application ID
@@ -369,8 +332,9 @@ QKDAppHelper::InstallQKDApplication
             InetSocketAddress (km2Address, 80),
             "bob"
         );
+        node1->AddApplication (appAlice);
         node2->AddApplication (appBob);
-
+ 
         control1->GetObject<QKDControl> ()->RegisterQKDApplicationPair (
             aliceId,
             bobId,
@@ -382,15 +346,25 @@ QKDAppHelper::InstallQKDApplication
             control1->GetObject<QKDControl> ()->GetLocalKMNode() //KM on which Alice is connected!
         );
 
-
         apps.Add(appAlice);
         apps.Add(appBob);
+
+        std::cout << "\n\nCRYPTOGRAPHIC ETSI014 APPLICATION PAIR INSTALLED\n"
+                << "\tMaster ID:\t" << aliceId << "\tLocal KMS node:\t" << control1->GetObject<QKDControl> ()->GetLocalKMNodeId()
+                << "\n\tSlave ID:\t" << bobId << "\tLocal KMS node:\t" << control2->GetObject<QKDControl> ()->GetLocalKMNodeId()
+                << "\n\tData rate:\t" << dataRate << "\tPacket size:\t" << packetSize << "\n";
+
+        NS_LOG_FUNCTION(this << "\n\nCRYPTOGRAPHIC ETSI014 APPLICATION PAIR INSTALLED\n"
+                << "\tMaster ID:\t" << aliceId << "\tLocal KMS node:\t" << control1->GetObject<QKDControl> ()->GetLocalKMNodeId()
+                << "\n\tSlave ID:\t" << bobId << "\tLocal KMS node:\t" << control2->GetObject<QKDControl> ()->GetLocalKMNodeId()
+                << "\n\tData rate:\t" << dataRate << "\tPacket size:\t" << packetSize;
+        );
 
     }else if(applicationType == "etsi004"){
 
-        Ptr<QKDApp004> appAlice = CreateObject<QKDApp004> ();
-        Ptr<QKDApp004> appBob = CreateObject<QKDApp004> ();
-        appAlice->Setup(
+        Ptr<Application> appAlice = m_factory_qkd004_app.Create<Application> ();
+        Ptr<Application> appBob = m_factory_qkd004_app.Create<Application> ();
+        DynamicCast<QKDApp004> (appAlice)->Setup(
             connectionType,
             aliceId,    //This application ID
             bobId,   //Peer application ID
@@ -400,18 +374,19 @@ QKDAppHelper::InstallQKDApplication
             packetSize,
             DataRate (dataRate),
             "alice"
-        );
-        node1->AddApplication (appAlice);
-
-        appBob->Setup(
+        ); 
+        DynamicCast<QKDApp004> (appBob)->Setup(
             connectionType,
             bobId,  //This application ID
             aliceId, //Peer application ID
             slaveAddress,
             masterAddress,
             InetSocketAddress (km2Address, 80),
+            packetSize,
+            DataRate (dataRate),
             "bob"
         );
+        node1->AddApplication (appAlice);
         node2->AddApplication (appBob);
 
         control1->GetObject<QKDControl> ()->RegisterQKDApplicationPair (
@@ -425,9 +400,19 @@ QKDAppHelper::InstallQKDApplication
             control1->GetObject<QKDControl> ()->GetLocalKMNode() //KM on which Alice is connected!
         );
 
-
         apps.Add(appAlice);
         apps.Add(appBob);
+
+        std::cout << "\n\nCRYPTOGRAPHIC ETSI004 APPLICATION PAIR INSTALLED\n"
+                << "\tMaster ID:\t" << aliceId << "\tLocal KMS node:\t" << control1->GetObject<QKDControl> ()->GetLocalKMNodeId()
+                << "\n\tSlave ID:\t" << bobId << "\tLocal KMS node:\t" << control2->GetObject<QKDControl> ()->GetLocalKMNodeId()
+                << "\n\tData rate:\t" << dataRate << "\tPacket size:\t" << packetSize << "\n";
+
+        NS_LOG_FUNCTION(this << "\n\nCRYPTOGRAPHIC ETSI004 APPLICATION PAIR INSTALLED\n"
+                << "\tMaster ID:\t" << aliceId << "\tLocal KMS node:\t" << control1->GetObject<QKDControl> ()->GetLocalKMNodeId()
+                << "\n\tSlave ID:\t" << bobId << "\tLocal KMS node:\t" << control2->GetObject<QKDControl> ()->GetLocalKMNodeId()
+                << "\n\tData rate:\t" << dataRate << "\tPacket size:\t" << packetSize;
+        );
 
     }else
         std::cout << "ERROR: Unknown application type!";

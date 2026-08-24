@@ -1,12 +1,12 @@
 /*
- * Copyright(c) 2025 University of Sarajevo, Faculty of Electrical Engineering, 
- * Department of Telecommunications, Zmaja od Bosne bb, 71000 Sarajevo, Bosnia and Herzegovina
- * www.tk.etf.unsa.ba
+  * Copyright(c) 2022 DOTFEESA www.tk.etf.unsa.ba
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  *
  *
  *
  * Authors:  Emir Dervisevic <emir.dervisevic@etf.unsa.ba>
- *           Miralem Mehic <miralem.mehic@etf.unsa.ba>
+ *           Miralem Mehic <miralem.mehic@ieee.org>
  */
 
 #include <cmath>
@@ -36,11 +36,13 @@ namespace ns3 {
         .AddConstructor<QKDControl>();
       return tid;
     } 
-    
+
     QKDControl::QKDControl()
       : Object()
     {
         NS_LOG_FUNCTION_NOARGS();
+        m_rsbuffer_config = CreateObject<QBuffer>();
+        NS_ASSERT_MSG(m_rsbuffer_config, "RSBuffer config is null");
     }
 
     QKDControl::~QKDControl()
@@ -114,6 +116,11 @@ namespace ns3 {
     Ipv4Address
     QKDControl::GetLocalKMAddress() const {
         return GetKeyManagerSystemApplication( GetLocalKMNode() )->GetAddress();
+    }
+
+    std::vector<Ipv4Address>
+    QKDControl::GetLocalKMAddresses() const {
+        return GetKeyManagerSystemApplication( GetLocalKMNode() )->GetAddresses();
     }
 
     Ptr<Node>
@@ -192,7 +199,6 @@ namespace ns3 {
             kmRemote->GetId(),
             idLocal
         );
- 
     }
 
     void
@@ -277,7 +283,7 @@ namespace ns3 {
     )
     {
         NS_LOG_FUNCTION(this << "\tMmin:" << Mmin << "\tMthr:" << Mthr << "\tMmax:" << Mmax << "\tMcurr:" << Mcurr);
-        m_rsbuffer_config = CreateObject<QBuffer>();
+        NS_ASSERT_MSG(m_rsbuffer_config, "RSBuffer config is null");
         m_rsbuffer_config->Configure(Mmin, Mthr, Mmax, Mcurr, defaultKeySize);
     }
 
@@ -285,7 +291,13 @@ namespace ns3 {
     QKDControl::CreateRSBuffer(uint32_t remoteId)
     {
         NS_LOG_FUNCTION(this << remoteId);
+
+        //Precondition checks (catch config mistakes early)
+        NS_ASSERT_MSG(m_rsbuffer_config, "RSBuffer config is null");
+        NS_ASSERT_MSG(m_rsbuffer_config->GetKeySize() > 0, "KeySize must be > 0");
+
         Ptr<SBuffer> sBuffer = CreateObject<SBuffer>();
+        NS_ASSERT(sBuffer);
         sBuffer->Init(
             remoteId,
             m_rsbuffer_config->GetMmin(),
@@ -322,6 +334,16 @@ namespace ns3 {
         return routeInfo;
     }
 
+    QKDLocationRegisterEntry
+    QKDControl::GetRouteByKMSAddress(Ipv4Address dstKmsAddress)
+    {
+        NS_LOG_FUNCTION(this << "remoteKmAddress:" << dstKmsAddress);
+        QKDLocationRegisterEntry routeInfo;
+        if(!m_routingTable->LookupByKms(dstKmsAddress, routeInfo))
+            NS_LOG_ERROR(this << "\t Route to remoteKMEAddress " << dstKmsAddress << " not found!");
+        return routeInfo;
+    }
+
     void
     QKDControl::ClearRoutingTable()
     {
@@ -331,7 +353,7 @@ namespace ns3 {
     void
     QKDControl::AddRouteEntry(QKDLocationRegisterEntry entry)
     {
-        NS_LOG_FUNCTION(this);
+        NS_LOG_FUNCTION(this << GetNode()->GetId());
         m_routingTable->AddEntry(entry);
     }
 

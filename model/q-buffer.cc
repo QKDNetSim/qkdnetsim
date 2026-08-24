@@ -1,10 +1,11 @@
 /*
- * Copyright(c) 2025 University of Sarajevo, Faculty of Electrical Engineering, 
- * Department of Telecommunications, Zmaja od Bosne bb, 71000 Sarajevo, Bosnia and Herzegovina
- * www.tk.etf.unsa.ba
+ * Copyright(c) 2022 DOTFEESA www.tk.etf.unsa.ba
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  *
  *
- * Authors: Miralem Mehic <miralem.mehic@etf.unsa.ba>
+ *
+ * Authors: Miralem Mehic <miralem.mehic@ieee.org>
  *          Emir Dervisevic <emir.dervisevic@etf.unsa.ba>
  */
 
@@ -123,7 +124,7 @@ namespace ns3 {
         uint32_t defaultKeySize
     )
     {
-        NS_LOG_FUNCTION(this);
+        NS_LOG_FUNCTION(this << Mmin << Mthr << Mmax << Mcurr << defaultKeySize);
         m_minKeyBit = Mmin;
         m_thresholdKeyBit = Mthr;
         m_maxKeyBit = Mmax;
@@ -288,7 +289,7 @@ namespace ns3 {
         NS_LOG_FUNCTION(this
             << "\nKey ID:\t" << key->GetId()
             << "\nKey Size:\t" << key->GetSizeInBits()
-            << "\nKey Value:\t" << key->ToString() 
+            //<< "\nKey Value:\t" << key->ToString() 
             << "\nGetBitCount():\t" << GetBitCount()
         );
  
@@ -354,12 +355,29 @@ namespace ns3 {
         return true;
     }
 
+    uint32_t 
+    QBuffer::GetKeyStatus(std::string keyId)
+    {
+        NS_LOG_FUNCTION(this << keyId);
+        NS_ASSERT(!keyId.empty()); 
+
+        auto a = m_keys.find(keyId);
+        if(a != m_keys.end())
+        { 
+            return a->second->GetState();    
+        }else
+            NS_LOG_DEBUG(this << "GetKeyStatus: Key " << keyId << " NOT found!");
+        
+        return QKDKey::OBSOLETE;
+    }
+
     //NOTE: Function is allowed to return NULL value. Processing is left to the KM.
     Ptr<QKDKey>
     QBuffer::GetKey(std::string keyId, bool fireTraces)
     {
         Ptr<QKDKey> key {NULL};
-        if(!keyId.empty()){ //Return requested key if found
+        if(!keyId.empty())
+        {   //Return requested key if found
             NS_LOG_FUNCTION(this << "keyId:\t" << keyId);
             auto a = m_keys.find(keyId);
             if(a != m_keys.end()){
@@ -375,7 +393,8 @@ namespace ns3 {
             }else
                 NS_LOG_DEBUG(this << "not found " << keyId);
 
-        }else{ //Return random key from QBuffer
+        }else{ 
+            //Return random key from QBuffer
             NS_LOG_FUNCTION(this << "keyId:\t" << keyId <<  "\t *random" << GetKeyCount());
             std::unordered_map< std::string, Ptr <QKDKey> >::iterator random_it;
             uint32_t keyCount = GetKeyCount();
@@ -384,7 +403,7 @@ namespace ns3 {
                 if(keyCount == 1)
                 {
                     random_it = m_keys.begin();
-                } else{
+                } else {
                     random_it = std::next(std::begin(m_keys), std::rand()%keyCount);
                 }
                 key = random_it->second;
@@ -398,9 +417,7 @@ namespace ns3 {
                 }
             }else
                 NS_LOG_FUNCTION(this << "QBuffer is empty");
-
         }
-
         return key;
     }
 
@@ -554,6 +571,7 @@ namespace ns3 {
 
     void
     QBuffer::SetKeySize(uint32_t size){
+        NS_LOG_FUNCTION(this << size);
         m_defaultKeySize = size;
     }
 

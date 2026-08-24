@@ -1,10 +1,12 @@
 /*
- * Copyright(c) 2025 University of Sarajevo, Faculty of Electrical Engineering, 
- * Department of Telecommunications, Zmaja od Bosne bb, 71000 Sarajevo, Bosnia and Herzegovina
- * www.tk.etf.unsa.ba
+ * Copyright(c) 2020 DOTFEESA www.tk.etf.unsa.ba
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ *
+ *
  *
  * Author:  Emir Dervisevic <emir.dervisevic@etf.unsa.ba>
- *          Miralem Mehic <miralem.mehic@etf.unsa.ba>
+ *          Miralem Mehic <miralem.mehic@ieee.org>
  */
 #ifndef QKD_SEND_H004
 #define QKD_SEND_H004
@@ -23,6 +25,7 @@
 #include "ns3/app-key-stream.h"
 #include <unordered_map>
 #include <string>
+#include "ns3/uuid.h"
 
 #include <iostream>
 #include <sstream>
@@ -38,7 +41,7 @@ class Packet;
 
 /**
  * @ingroup applications
- * @defgroup qkd QKDApp004
+ * @defgroup QKDApp QKDApp004
  *
  * The QKDApp004 application implements communication
  * to Local Key Management System and it establish secure
@@ -46,7 +49,7 @@ class Packet;
  */
 
 /**
- * @ingroup qkd
+ * @ingroup QKDApp
  *
  * @brief Establish secure communication on application lavel to use the key and test LKSM
  *
@@ -92,16 +95,6 @@ public:
         SEND_KSID,
         ESTABLISH_QUEUES
     };
-
-    void Setup(
-      std::string socketType,
-      std::string appId,
-      std::string remoteAppId,
-      const Address&  appAddress,
-      const Address&  remoteAppAddress,
-      const Address&  kmAddress,
-      std::string type
-    );
 
     void Setup(
       std::string socketType,
@@ -604,6 +597,11 @@ private:
 
     std::string IpToString(Ipv4Address address);
 
+    /**
+    * @brief Generate UUID
+    * @return string UUID
+    */
+    std::string GenerateUUID();
 
     /**
      * @brief QKDApp encrypts the data with obtained keys
@@ -659,6 +657,7 @@ private:
     TracedCallback<Ptr<Packet> > m_decryptionTrace; //!< trace callback for decryption
     TracedCallback<Ptr<Packet>, std::string > m_authenticationTrace; //!< trace callback for authentication
     TracedCallback<Ptr<Packet>, std::string > m_deauthenticationTrace; //!< trace callback for authentication check
+    TracedCallback<const std::string&, const std::string&, const std::string&, const uint32_t&> m_ksidGenerated;
     QKDEncryptor::EncryptionType m_encryptionType;
     QKDEncryptor::AuthenticationType m_authenticationType;
     Ptr<QKDEncryptor> m_encryptor;

@@ -1,10 +1,12 @@
 /*
- * Copyright(c) 2025 University of Sarajevo, Faculty of Electrical Engineering, 
- * Department of Telecommunications, Zmaja od Bosne bb, 71000 Sarajevo, Bosnia and Herzegovina
- * www.tk.etf.unsa.ba
+ * Copyright(c) 2020 DOTFEESA www.tk.etf.unsa.ba
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ *
+ *
  *
  * Author:  Emir Dervisevic <emir.dervisevic@etf.unsa.ba>
- *          Miralem Mehic <miralem.mehic@etf.unsa.ba>
+ *          Miralem Mehic <miralem.mehic@ieee.org>
  */
 
 #include "ns3/address.h"
@@ -81,45 +83,48 @@ QKDApp004::GetTypeId()
 
     .AddTraceSource("Tx", "A new packet is created and is sent",
                      MakeTraceSourceAccessor(&QKDApp004::m_txTrace),
-                     "ns3::Packet::TracedCallback")
+                     "ns3::QKDApp004::Tx")
     .AddTraceSource("TxSig", "A new signaling packet is created and is sent",
                      MakeTraceSourceAccessor(&QKDApp004::m_txSigTrace),
-                     "ns3::Packet::TracedCallback")
+                     "ns3::QKDApp004::TxSig")
     .AddTraceSource("TxKMS", "A new packet is created and is sent to local KMS",
                      MakeTraceSourceAccessor(&QKDApp004::m_txKmsTrace),
-                     "ns3::Packet::TracedCallback")
+                     "ns3::QKDApp004::TxKMS")
     .AddTraceSource("Rx", "A new packet is received",
                      MakeTraceSourceAccessor(&QKDApp004::m_rxTrace),
-                     "ns3::Packet::TracedCallback")
+                     "ns3::QKDApp004::Rx")
     .AddTraceSource("RxSig", "A new signaling packet is received",
                      MakeTraceSourceAccessor(&QKDApp004::m_rxSigTrace),
-                     "ns3::Packet::TracedCallback")
+                     "ns3::QKDApp004::RxSig")
     .AddTraceSource("RxKMS", "A new packet is received from local KMS",
                      MakeTraceSourceAccessor(&QKDApp004::m_rxKmsTrace),
-                     "ns3::Packet::TracedCallback")
+                     "ns3::QKDApp004::RxKMS")
     .AddTraceSource("StateTransition",
                      "Trace fired upon every QKDApp state transition.",
                      MakeTraceSourceAccessor(&QKDApp004::m_stateTransitionTrace),
-                     "ns3::Application::StateTransitionCallback")
+                     "ns3::QKDApp004::StateTransition")
     .AddTraceSource("PacketEncrypted",
                     "The change trance for currenly ecrypted packet",
                      MakeTraceSourceAccessor(&QKDApp004::m_encryptionTrace),
-                     "ns3::QKDCrypto::PacketEncrypted")
+                     "ns3::QKDApp004::PacketEncrypted")
     .AddTraceSource("PacketDecrypted",
                     "The change trance for currenly decrypted packet",
                      MakeTraceSourceAccessor(&QKDApp004::m_decryptionTrace),
-                     "ns3::QKDCrypto::PacketDecrypted")
+                     "ns3::QKDApp004::PacketDecrypted")
     .AddTraceSource("PacketAuthenticated",
                     "The change trance for currenly authenticated packet",
                      MakeTraceSourceAccessor(&QKDApp004::m_authenticationTrace),
-                     "ns3::QKDCrypto::PacketAuthenticated")
+                     "ns3::QKDApp004::PacketAuthenticated")
     .AddTraceSource("PacketDeAuthenticated",
                     "The change trance for currenly deauthenticated packet",
                      MakeTraceSourceAccessor(&QKDApp004::m_deauthenticationTrace),
-                     "ns3::QKDCrypto::PacketDeAuthenticated")
+                     "ns3::QKDApp004::PacketDeAuthenticated")
     .AddTraceSource("Mx", "Missed send packet call",
                      MakeTraceSourceAccessor(&QKDApp004::m_mxTrace),
-                     "ns3::Packet::TracedCallback")
+                     "ns3::QKDApp004::Mx") 
+    .AddTraceSource("KSIDUpdated", "The trace generated ETSI 004 KSIDs",
+                     MakeTraceSourceAccessor(&QKDApp004::m_ksidGenerated),
+                     "ns3::QKDApp004::Etsi004KSIDGenerated")
   ;
 
   return tid;
@@ -171,30 +176,7 @@ QKDApp004::DoDispose()
 
   Application::DoDispose();
 }
-
-void
-QKDApp004::Setup(
-  std::string socketType,
-  std::string appId,
-  std::string remoteAppId,
-  const Address& appAddress,
-  const Address& remoteAppAddress,
-  const Address& kmAddress,
-  std::string type
-){
-  Setup(
-    socketType,
-    appId,
-    remoteAppId,
-    appAddress,
-    remoteAppAddress,
-    kmAddress,
-    0,
-    0,
-    type
-  );
-}
-
+ 
 void
 QKDApp004::Setup(
   std::string socketType,
@@ -247,8 +229,7 @@ QKDApp004::Setup(
   m_authStream->SetSize(m_keyBufferLengthAuthentication);
   m_authStream->SetType(KeyStreamSession::AUTHENTICATION);
 
-  SetState(INITIALIZED);
-
+  SetState(INITIALIZED); 
 }
 
 /**
@@ -693,7 +674,6 @@ QKDApp004::ProcessPacketsToKMSFromQueue()
         if(it->packet ) {
           m_txKmsTrace(GetId(), it->packet);
           m_socketToKMS->Send(it->packet);
-
         }
         m_queue_kms.erase(it);
         c++;
@@ -931,40 +911,40 @@ QKDApp004::CheckQueues()
     NS_LOG_FUNCTION(this);
     bool encQueueReady {false};
     bool authQueueReady {false};
+
     if(m_encStream->IsVerified() && m_encStream->GetKeyCount() < m_encStream->GetSize())
-        GetKeyFromKMS(m_encStream->GetId());
-    else
+    {
+      NS_LOG_FUNCTION(this << " 917: " << m_encStream->IsVerified() << m_encStream->GetKeyCount() << m_encStream->GetSize());
+      GetKeyFromKMS(m_encStream->GetId());
+    }else
         encQueueReady = true;
 
     if(m_authStream->IsVerified() && m_authStream->GetKeyCount() < m_authStream->GetSize())
-        GetKeyFromKMS(m_authStream->GetId());
-    else
+    {
+      NS_LOG_FUNCTION(this << " 924: " << m_authStream->IsVerified() << m_authStream->GetKeyCount() << m_authStream->GetSize());
+      GetKeyFromKMS(m_authStream->GetId());
+    }else
         authQueueReady = true;
 
     if(authQueueReady && encQueueReady){
-        if(!m_master){
+        if(!m_master)
+        {
             NS_LOG_FUNCTION(this << m_master << "queues established");
             SetState(KEY_QUEUES_ESTABLISHED);
             AppTransitionTree();
 
         }else if(m_master){
-            if(m_replicaQueueEstablished){
+            if(m_replicaQueueEstablished)
+            {
                 NS_LOG_FUNCTION(this << "both sides establihed queues");
                 SetState(KEY_QUEUES_ESTABLISHED);
                 AppTransitionTree();
 
             }else{
                 NS_LOG_FUNCTION(this << m_master << "queues established");
-                m_primaryQueueEstablished = true;
-
+                m_primaryQueueEstablished = true; 
             }
         }
-    }else if(!authQueueReady && encQueueReady){
-      NS_LOG_FUNCTION(this << "authQueueReady is not ready!");
-    }else if(authQueueReady && !encQueueReady){
-      NS_LOG_FUNCTION(this << "encQueueReady is not ready!");
-    }else{
-      NS_LOG_FUNCTION(this << "authQueueReady and encQueueReady are not ready!");
     }
 }
 
@@ -1105,7 +1085,6 @@ QKDApp004::SendPacket()
         NS_LOG_ERROR(this << "no encryption key available");
         SetState(READY);
         return;
-
       }else{
         encKey->UseLifetime(m_packetSize);
         if(encKey->GetLifetime() == 0)
@@ -1116,7 +1095,6 @@ QKDApp004::SendPacket()
                              << "\nEncryption key ID:\t\t" << encKey->GetIndex() << encKey->GetKeyString()
                              << "\nEncrypted message:\t\t" << m_encryptor->Base64Encode(encryptedMsg));
       }
-
     }
     if(GetAuthenticationKeySize() ){//Obtain authentication
       authKey = m_authStream->GetKey();
@@ -1124,7 +1102,6 @@ QKDApp004::SendPacket()
         NS_LOG_ERROR(this << "no autentication key available");
         SetState(READY);
         return;
-
       }else{
         GetKeyFromKMS(m_authStream->GetId());
         authKeyId = authKey->GetIndex();
@@ -1132,19 +1109,16 @@ QKDApp004::SendPacket()
         NS_LOG_FUNCTION(this << "\nAuthentication key ID:\t\t" << authKey->GetIndex() << authKey->GetKeyString()
                              << "\nAuthentication tag:\t\t" << authTag);
       }
-
     }else if(m_authenticationType != QKDEncryptor::UNAUTHENTICATED){
       authTag = m_encryptor->Authenticate(encryptedMsg, "");
       NS_LOG_FUNCTION(this << "\nAuthentication tag:\t\t" << authTag);
-
     }
     //Create packet with protected/unprotected data
     std::string msg = encryptedMsg;
     Ptr<Packet> packet = Create<Packet>((uint8_t*) msg.c_str(), msg.length() );
     NS_ASSERT(packet );
     m_authenticationTrace(packet, authTag);
-
-    //Add qkd header!
+ 
     QKDAppHeader qHeader;
     qHeader.SetEncrypted(m_encryptionType);
     qHeader.SetEncryptionKeyId(std::to_string(encKeyId));
@@ -1154,7 +1128,7 @@ QKDApp004::SendPacket()
     qHeader.SetLength(packet->GetSize() + qHeader.GetSerializedSize());
     packet->AddHeader(qHeader);
 
-    //Send packet!
+    //Send data packet!
     m_txTrace(GetId(), packet);
     m_dataSocketApp->Send(packet);
     m_packetsSent++;
@@ -1260,6 +1234,9 @@ QKDApp004::ProcessResponseFromKMS(HTTPMessage& header, Ptr<Packet> packet, Ptr<S
 {
   NS_LOG_FUNCTION(this << packet->GetUid() << packet->GetSize());
   std::string methodName {ReadUri(header.GetRequestUri())[5]};
+
+  NS_LOG_FUNCTION(this << "We resived resposne to " << methodName);
+
   if(methodName == "open_connect" && GetState() != STOPPED)
     ProcessOpenConnectResponse(header);
 
@@ -1285,7 +1262,7 @@ QKDApp004::ProcessResponseFromKMS(HTTPMessage& header, Ptr<Packet> packet, Ptr<S
 void
 QKDApp004::OpenConnect(std::string ksid, KeyStreamSession::Type sessionType)
 {
-  NS_LOG_FUNCTION(this << ksid << sessionType);
+  NS_LOG_FUNCTION(this << GetId() << ksid << sessionType);
   uint32_t keySize;
   if(sessionType == KeyStreamSession::ENCRYPTION)
     keySize = GetEncryptionKeySize();
@@ -1293,17 +1270,20 @@ QKDApp004::OpenConnect(std::string ksid, KeyStreamSession::Type sessionType)
     keySize = GetAuthenticationKeySize();
 
   NS_LOG_FUNCTION(this << m_master << ksid << sessionType << keySize);
-  if(m_master)                 NS_ASSERT(keySize );
+  if(m_master)
+    NS_ASSERT(keySize );
 
   nlohmann::json msgBody {
     {"Source", GetId()},
     {"Destination", GetPeerId()}
     //{"Qos", {{"priority", 2}} }
   };
-  if(!m_master)
-    msgBody["Key_stream_ID"] = ksid;
-  else
+  if(m_master)
+  {
     msgBody["QoS"]["Key_chunk_size"] = keySize;
+  }
+  if(!ksid.empty())
+    msgBody["Key_stream_ID"] = ksid;
 
   //Create packet
   std::string reqUri {"http://"+IpToString(GetKmsIp())+"/api/v1/keys/"+GetPeerId()+"/open_connect"};
@@ -1369,7 +1349,16 @@ QKDApp004::GetKeyFromKMS(std::string ksid)
     NS_LOG_FUNCTION(this << "packet enqueud" << packet->GetUid() << packet->GetSize() << m_socketToKMS);
 
   }else{
-    PushHttpKmsRequest(reqUri); //open_connect->0, get_key->1, close->2; encKey->0, authKey->1
+
+    KeyStreamSession::Type sessionType;
+    if(m_encStream->GetId() == ksid)
+      sessionType = KeyStreamSession::ENCRYPTION;
+    else if(m_authStream->GetId() == ksid)
+      sessionType = KeyStreamSession::AUTHENTICATION;
+    else 
+      NS_FATAL_ERROR(this << "unknown ksid!" << ksid);
+
+    PushHttpKmsRequest(reqUri, sessionType); //open_connect->0, get_key->1, close->2; encKey->0, authKey->1
     m_txKmsTrace(GetId(),packet);
     m_socketToKMS->Send(packet);
     NS_LOG_FUNCTION(this << "packet sent" << packet->GetUid() << packet->GetSize() << m_socketToKMS);
@@ -1403,7 +1392,17 @@ QKDApp004::Close(std::string ksid)
   Address temp; //check whether the socket to KMS is active and connected
   if(m_socketToKMS)
   {
-    PushHttpKmsRequest(reqUri);
+
+    KeyStreamSession::Type sessionType;
+    if(m_encStream->GetId() == ksid)
+      sessionType = KeyStreamSession::ENCRYPTION;
+    else if(m_authStream->GetId() == ksid)
+      sessionType = KeyStreamSession::AUTHENTICATION;
+    else 
+      NS_FATAL_ERROR(this << "unknown ksid!" << ksid);
+
+    PushHttpKmsRequest(reqUri, sessionType); //open_connect->0, get_key->1, close->2; encKey->0, authKey->1
+     
     m_txKmsTrace(GetId(),packet);
     m_socketToKMS->Send(packet);
     NS_LOG_FUNCTION(this << "packet sent" << packet->GetUid() << packet->GetSize() << m_socketToKMS);
@@ -1438,27 +1437,50 @@ QKDApp004::ProcessOpenConnectResponse(HTTPMessage& header)
 
   }
 
+  uint32_t keySize = 0;
+  if(sessionType == KeyStreamSession::ENCRYPTION)
+    keySize = GetEncryptionKeySize();
+  else
+    keySize = GetAuthenticationKeySize();
+
   std::string ksid;
   if(m_master){
-    if(header.GetStatus() == HTTPMessage::Ok){
-      if(jOpenConnect.contains("Key_stream_ID")) ksid = jOpenConnect["Key_stream_ID"];
+    if(header.GetStatus() == HTTPMessage::Ok)
+    {
+      
+      if(jOpenConnect.contains("Key_stream_ID")) 
+        ksid = jOpenConnect["Key_stream_ID"];
+
       NS_ASSERT(!ksid.empty());
-
       if(sessionType == KeyStreamSession::ENCRYPTION)
+      { 
+        m_ksidGenerated(
+          ksid,
+          GetId(),
+          GetPeerId(),
+          keySize
+        );
         m_encStream->SetId(ksid);
-      else
+      } else {
+        m_ksidGenerated(
+          ksid,
+          GetId(),
+          GetPeerId(),
+          keySize
+        ); 
         m_authStream->SetId(ksid);
-
-      SendKsid(ksid, sessionType);
-
+      } 
+      SendKsid(ksid, sessionType); 
     }else
       NS_LOG_ERROR(this << "open_connect refused " << jOpenConnect["status"]);
 
   }else{//!m_master
     if(sessionType == KeyStreamSession::ENCRYPTION)
+    {
       ksid = m_encStream->GetId();
-    else
+    }else{
       ksid = m_authStream->GetId();
+    }
 
     if(header.GetStatus() == HTTPMessage::Ok){
       if(sessionType == KeyStreamSession::ENCRYPTION)
@@ -1473,8 +1495,7 @@ QKDApp004::ProcessOpenConnectResponse(HTTPMessage& header)
       if(sessionType == KeyStreamSession::ENCRYPTION)
         m_encStream->ClearStream();
       else
-        m_authStream->ClearStream();
-
+        m_authStream->ClearStream(); 
       SendKsid(ksid, sessionType, HTTPMessage::BadRequest);
 
     }
@@ -1484,8 +1505,10 @@ QKDApp004::ProcessOpenConnectResponse(HTTPMessage& header)
 void
 QKDApp004::ProcessGetKeyResponse(HTTPMessage& header)
 {
-  NS_LOG_FUNCTION(this);
+  NS_LOG_FUNCTION(this << header.GetStatus());
   std::string payload {header.GetMessageBodyString()};
+  NS_LOG_FUNCTION(this << payload);
+
   std::string ksid;
   KeyStreamSession::Type sessionType {PopHttpKmsRequest(header.GetRequestUri())};
   if(sessionType == KeyStreamSession::ENCRYPTION)
@@ -1502,24 +1525,29 @@ QKDApp004::ProcessGetKeyResponse(HTTPMessage& header)
       NS_FATAL_ERROR( this << "JSON parse error!");
     }
 
-  if(header.GetStatus() == HTTPMessage::Ok){
+  if(header.GetStatus() == HTTPMessage::Ok)
+  {
     uint32_t index = -1;
     std::string keyValue;
     if(jGetKeyResponse.contains("index"))       index = jGetKeyResponse["index"];
     if(jGetKeyResponse.contains("Key_buffer"))  keyValue = jGetKeyResponse["Key_buffer"];
     NS_ASSERT(index >= 0 || !keyValue.empty());
 
-    AppKey::Type keyType = AppKey::ENCRYPTION;
-    if(sessionType == KeyStreamSession::ENCRYPTION) 
+    AppKey::Type keyType;
+    if(sessionType == KeyStreamSession::ENCRYPTION)   
       keyType = AppKey::ENCRYPTION;
     else if(sessionType == KeyStreamSession::AUTHENTICATION) 
       keyType = AppKey::AUTHENTICATION;
-    
+
     Ptr<AppKey> key {CreateObject<AppKey>(index, keyValue, keyType, m_aesLifetime)};
     if(sessionType == KeyStreamSession::ENCRYPTION)
+    {
+      NS_LOG_FUNCTION(this << "Store received key " << key->GetId() << " in encStream");
       m_encStream->AddKey(key);
-    else
+    }else{
+      NS_LOG_FUNCTION(this << "Store received key " << key->GetId() << " in authStream");
       m_authStream->AddKey(key);
+    }
 
     if(GetState() == ESTABLISHING_KEY_QUEUES)
       CheckQueues();
@@ -1566,6 +1594,7 @@ void
 QKDApp004::ProcessSignalingPacketFromApp(HTTPMessage& header, Ptr<Socket> socket)
 {
   NS_LOG_FUNCTION(this << m_master);
+
   if(m_master){ //Sender App004 processes responses from peer Receiver App004
     std::string method { ReadUri( header.GetRequestUri() )[5] };
     if(method == "send_ksid"){ //Sender App004 processes send_ksid response
@@ -1729,13 +1758,48 @@ QKDApp004::CreateKeyStreamSessions()
     NS_LOG_FUNCTION(this << m_master);
 
     NS_ASSERT(m_master);
-    if(GetEncryptionKeySize()  && m_encStream->GetId().empty())
-        OpenConnect("", KeyStreamSession::ENCRYPTION); //Establish association for a set of future encryption keys
+    if(GetEncryptionKeySize()  && m_encStream->GetId().empty()){
+      std::string ksid = "";// GenerateUUID();
+      m_ksidGenerated(
+        ksid,
+        GetId(),
+        GetPeerId(),
+        GetEncryptionKeySize()
+      );
+      //Establish association for a set of future encryption keys
+      OpenConnect(ksid, KeyStreamSession::ENCRYPTION);
 
-    if(GetAuthenticationKeySize()  && m_authStream->GetId().empty())
-        OpenConnect("", KeyStreamSession::AUTHENTICATION); //Establish association for a set of future authentication keys
+      //we delay open connect call so trace m_ksidGenerated is registered on time
+      //Simulator::Schedule(Seconds(8), &QKDApp004::OpenConnect, this, ksid, KeyStreamSession::ENCRYPTION);
+    }
+
+    if(GetAuthenticationKeySize()  && m_authStream->GetId().empty()){
+      std::string ksid = ""; //GenerateUUID(); 
+      m_ksidGenerated(
+        ksid,
+        GetId(),
+        GetPeerId(),
+        GetAuthenticationKeySize()
+      );
+      //Establish association for a set of future authentication keys
+      OpenConnect(ksid, KeyStreamSession::AUTHENTICATION); 
+
+      //we delay open connect call so trace m_ksidGenerated is registered on time
+      //Simulator::Schedule(Seconds(8), &QKDApp004::OpenConnect, this, ksid, KeyStreamSession::AUTHENTICATION);
+    }
 
 }
+
+ std::string
+QKDApp004::GenerateUUID()
+  {
+    NS_LOG_FUNCTION(this);
+    std::string output;
+    UUID ksidRaw = UUID::Sequential();
+    output = ksidRaw.string();
+    NS_LOG_FUNCTION(this << output);
+    return output;
+  }
 
 void
 QKDApp004::RegisterAckTime(Time oldRtt, Time newRtt)
@@ -1959,6 +2023,8 @@ QKDApp004::GetPacketContent(uint32_t msgLength)
 uint32_t
 QKDApp004::GetEncryptionKeySize()
 {
+    NS_LOG_FUNCTION(this << m_encryptionType << m_packetSize );
+
     switch(m_encryptionType){
         case QKDEncryptor::UNENCRYPTED:
             return 0;
@@ -1970,12 +2036,15 @@ QKDApp004::GetEncryptionKeySize()
             return CryptoPP::AES::MAX_KEYLENGTH * 8; //In bits 256! Quantum resistant!
             break;
     }
+
+    std::cout << "??? " << m_encryptionType << " ???\n";
     return 0;
 }
 
 uint32_t
 QKDApp004::GetAuthenticationKeySize()
 {
+    NS_LOG_FUNCTION(this << m_authenticationType );
     switch(m_authenticationType){
         case QKDEncryptor::UNAUTHENTICATED:
             return 0;

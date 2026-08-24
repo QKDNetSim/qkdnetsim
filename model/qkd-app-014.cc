@@ -1,10 +1,12 @@
 /*
- * Copyright(c) 2025 University of Sarajevo, Faculty of Electrical Engineering, 
- * Department of Telecommunications, Zmaja od Bosne bb, 71000 Sarajevo, Bosnia and Herzegovina
- * www.tk.etf.unsa.ba
+ * Copyright(c) 2020 DOTFEESA www.tk.etf.unsa.ba
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ *
+ *
  *
  * Author:  Emir Dervisevic <emir.dervisevic@etf.unsa.ba>
- *          Miralem Mehic <miralem.mehic@etf.unsa.ba>
+ *          Miralem Mehic <miralem.mehic@ieee.org>
  */
 
 #include "ns3/address.h"
@@ -852,7 +854,7 @@ QKDApp014::GetLocalKey(std::string type, std::string keyId)
       if(it != m_encStore.end()){
         localKey = it->second;
         NS_LOG_FUNCTION(this << localKey->GetLifetime());
-        if(m_encryptionType == QKDEncryptor::QKDCRYPTO_AES && localKey->GetLifetime() < 2*m_size ){
+        if( localKey->GetLifetime() < 2*m_size ){
           NS_LOG_FUNCTION(this << "lifetime expired! key " << localKey->GetId() << " removed");
           m_encStore.erase(it);
         }else
@@ -878,7 +880,7 @@ QKDApp014::GetLocalKey(std::string type, std::string keyId)
     if(it != m_commonStore.end()){
       localKey = it->second;
       if(localKey->GetType() == AppKey::ENCRYPTION){
-        if(m_encryptionType == QKDEncryptor::QKDCRYPTO_AES && localKey->GetLifetime() < 2*m_size ){
+        if( localKey->GetLifetime() < 2*m_size ){
           NS_LOG_FUNCTION(this << "lifetime expired! key " << localKey->GetId() << " removed");
           m_commonStore.erase(it);
         }else
@@ -1221,7 +1223,7 @@ QKDApp014::GetStatusFromKMS()
 void
 QKDApp014::GetKeysFromKMS(std::string keyType)
 {
-  NS_LOG_FUNCTION(this << keyType);
+  NS_LOG_FUNCTION(this << keyType << m_numberOfKeysKMS);
   if(!m_socketToKMS)    PrepareSocketToKMS();
 
   uint32_t number {m_numberOfKeysKMS};
@@ -1306,7 +1308,7 @@ QKDApp014::ProcessResponseFromKMS(HTTPMessage& header, Ptr<Packet> packet, Ptr<S
   try{
     responseBody = nlohmann::json::parse(header.GetMessageBodyString());
   }catch(...){
-    NS_FATAL_ERROR(this << "json parse error");
+    NS_FATAL_ERROR(this << "json parse error" << header.GetMessageBodyString());
   }
 
   /**       status          **/
@@ -1706,7 +1708,7 @@ uint32_t
 QKDApp014::GetEncryptionKeySize()
 {
 
-  NS_LOG_FUNCTION(this << m_size << CryptoPP::AES::MAX_KEYLENGTH << m_encryptionType);
+  NS_LOG_FUNCTION(this << CryptoPP::AES::DEFAULT_KEYLENGTH);
 
   switch(m_encryptionType)
   {
