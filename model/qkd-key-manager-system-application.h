@@ -35,7 +35,10 @@
 #include "json.h"
 #include <unordered_map>
 #include "ns3/uuid.h"
-//#include <liboqs-cpp/oqs_cpp.hpp>
+
+#ifdef QKDNETSIM_WITH_PQC
+#include <liboqs-cpp/oqs_cpp.hpp>
+#endif
 
 #include <cmath>
 #include <iostream>
@@ -971,9 +974,12 @@ private:
 
   uint32_t GetPeerKmNodeId(Ipv4Address dstKmAddress);
 
+
+#ifdef QKDNETSIM_WITH_PQC
   std::string m_PQCKem;
   std::string m_PQCPublicKey;
   std::shared_ptr<oqs::KeyEncapsulation> m_PQCkeyEncapsulation;
+#endif
 
   std::map<uint32_t, Ipv4Address> m_peerAddressTable; //!<IP address of peer KM nodes
 

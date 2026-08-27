@@ -1533,7 +1533,7 @@ QKDApp004::ProcessGetKeyResponse(HTTPMessage& header)
     if(jGetKeyResponse.contains("Key_buffer"))  keyValue = jGetKeyResponse["Key_buffer"];
     NS_ASSERT(index >= 0 || !keyValue.empty());
 
-    AppKey::Type keyType;
+    AppKey::Type keyType (AppKey::ENCRYPTION);
     if(sessionType == KeyStreamSession::ENCRYPTION)   
       keyType = AppKey::ENCRYPTION;
     else if(sessionType == KeyStreamSession::AUTHENTICATION) 

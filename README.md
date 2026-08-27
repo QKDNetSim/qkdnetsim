@@ -14,7 +14,7 @@ The detailed documentation is available on webpage https://www.qkdnetsim.info
 ## Deployment
 
  
-- The latest version of the code is compatible with NS-3 version 3.46.
+- The latest version of the code is compatible with NS-3 version 3.48.
 - Thus, one should follow installation requirements from the NS-3 official website (https://www.nsnam.org/wiki/Installation).   
 - The code has been successfully tested on Ubuntu 22.04. 
 - QKDNetSim v2.0 module is ***NOT*** compatible with QKDNetSim version 1.0 (https://v1.qkdnetsim.info). QKDNetSim v2.0 module was written independently and from scratch.
@@ -67,14 +67,14 @@ sudo apt-get install -y \
     cmake
 ```
 
-### 2. Install NS-3.46
+### 2. Install NS-3.48
 
-QKDNetSim requires **NS-3.46**.
+QKDNetSim requires **NS-3.48**.
 
-Clone the NS-3.46 source code:
+Clone the NS-3.48 source code:
 
 ```bash
-git clone -b ns-3.46 https://gitlab.com/nsnam/ns-3-dev.git
+git clone -b ns-3.48 https://gitlab.com/nsnam/ns-3-dev.git
 cd ns-3-dev
 ```
 
@@ -162,35 +162,15 @@ cmake --build liboqs-cpp/build --target install
 cmake --build liboqs-cpp/build --target examples --parallel 8
 ```
 
-### 3. Enable liboqs-cpp in QKDNetSim
-
-Open:
-
-```text
-ns-3-dev/contrib/qkdnetsim/model/qkd-key-manager-system-application.h
-```
-
-Find:
-
-```cpp
-//#include <liboqs-cpp/oqs_cpp.hpp>
-```
-
-and uncomment it:
-
-```cpp
-#include <liboqs-cpp/oqs_cpp.hpp>
-```
-
-### 4. Configure NS-3
+### 3. Configure NS-3
 
 After enabling PQC support, configure NS-3 again:
 
 ```bash
-./ns3 configure --enable-mpi --enable-examples
+./ns3 configure --enable-mpi --enable-examples -- -DQKDNETSIM_WITH_PQC=ON
 ```
 
-### 5. Run the QKD + PQC example
+### 4. Run the QKD + PQC example
 
 Run the QKD + PQC example:
 

@@ -1050,6 +1050,8 @@ QKDKeyManagerSystemApplication::StartApplication() // Called at time specified b
   if(!m_pqc_c) m_pqc_enabled = 0;
   if(m_pqc_enabled && m_pqc_c)
   {
+
+#ifdef QKDNETSIM_WITH_PQC
     //Create and store PQC public key
     m_PQCKem = "Kyber512";
     //m_PQCKem = "ML-KEM-768";
@@ -1058,6 +1060,7 @@ QKDKeyManagerSystemApplication::StartApplication() // Called at time specified b
     m_PQCkeyEncapsulation = std::make_shared<oqs::KeyEncapsulation>(m_PQCKem);
     oqs::bytes pub = m_PQCkeyEncapsulation->generate_keypair();
     m_PQCPublicKey.assign(reinterpret_cast<const char*>(pub.data()), pub.size());
+#endif
   
   }
 }
@@ -2659,10 +2662,10 @@ QKDKeyManagerSystemApplication::PQCCipherOutput(const std::string& peerPubDecode
                                                 uint32_t numberOfKeys)
 {
   NS_LOG_FUNCTION(this << peerPubDecoded.size() << numberOfKeys);
-
   std::vector<QKDKeyManagerSystemApplication::PqcPair> out;
   out.reserve(numberOfKeys);
 
+#ifdef QKDNETSIM_WITH_PQC
   oqs::KeyEncapsulation kem{m_PQCKem};
   oqs::bytes peerPub(peerPubDecoded.begin(), peerPubDecoded.end());
 
@@ -2679,6 +2682,8 @@ QKDKeyManagerSystemApplication::PQCCipherOutput(const std::string& peerPubDecode
     std::string keyId = GenerateUUID();
     out.push_back(QKDKeyManagerSystemApplication::PqcPair{std::move(keyId), std::move(secret), std::move(cipher_b64)});
   }
+#endif
+
   return out;
 }
 
@@ -2686,10 +2691,15 @@ std::string
 QKDKeyManagerSystemApplication::PQCCipherInput(const std::string& input)
 {       
   NS_LOG_FUNCTION(this);
+  std::string output;
+
+#ifdef QKDNETSIM_WITH_PQC
   oqs::bytes inputBytes(input.begin(), input.end()); 
   oqs::bytes sharedSecretClient = m_PQCkeyEncapsulation->decap_secret(inputBytes);
   NS_LOG_FUNCTION(this << "\n\nClient shared secret:\n" << oqs::hex_chop(sharedSecretClient) << "\n");
-  std::string output(sharedSecretClient.begin(), sharedSecretClient.end());
+  return std::string(sharedSecretClient.begin(), sharedSecretClient.end());
+#endif
+
   return output;
 }
 
@@ -2699,10 +2709,11 @@ QKDKeyManagerSystemApplication::GeneratePQCKeys(Ipv4Address peerKMSAddress, uint
 {
   NS_LOG_FUNCTION (this << peerKMSAddress << numberOfKeyToGenerate);
 
-  if(!m_pqc_enabled)return;
+  if(!m_pqc_enabled) return;
+
+#ifdef QKDNETSIM_WITH_PQC
 
   uint32_t srcNodeId = GetNode()->GetId(); 
-
   NS_ASSERT(dstNodeId);
 
   std::ostringstream peerkmsAddressTemp;
@@ -2726,10 +2737,8 @@ QKDKeyManagerSystemApplication::GeneratePQCKeys(Ipv4Address peerKMSAddress, uint
     return;
   }
 
-  
   uint32_t keysToGenerate = std::min(numberOfKeyToGenerate, m_pqc_default_number_of_keys);
   auto pairs = PQCCipherOutput(it->second.PQCPublicKey, keysToGenerate);
-
 
   Ptr<SBuffer> sBuffer = GetSBuffer(dstNodeId, "pqc");
   if(!sBuffer)
@@ -2774,7 +2783,9 @@ QKDKeyManagerSystemApplication::GeneratePQCKeys(Ipv4Address peerKMSAddress, uint
   Ptr<Socket> socket = GetSocketKMS(peerKMSAddress); 
   SendToSocketPairKMS(socket, packet);
   NS_LOG_FUNCTION(this << "PQC_CIPHER sent to peer KM" << packet->GetUid() << packet->GetSize()); 
-  //std::cout << "PQC_CIPHER sent to peer KM. PacketId: " << packet->GetUid() << " of size: " << packet->GetSize() << "\n";
+
+#endif
+
 }
 
 
@@ -2785,6 +2796,8 @@ QKDKeyManagerSystemApplication::CheckPQCBuffer(Ipv4Address peerKMSAddress)
 
   if(!m_pqc_enabled)
     return;
+
+#ifdef QKDNETSIM_WITH_PQC
 
   std::string schheduledKey = "pqc_" + GetAddressString(peerKMSAddress);
 
@@ -2828,12 +2841,17 @@ QKDKeyManagerSystemApplication::CheckPQCBuffer(Ipv4Address peerKMSAddress)
   }
   NS_LOG_FUNCTION(this << "Starts new PQC key generation!");
   GeneratePQCKeys(peerKMSAddress, peerKMNodeId, keysToFill);
+
+#endif
+
 }
 
 uint32_t
 QKDKeyManagerSystemApplication::ComputePqcMixing(uint32_t requestedKeys, uint32_t qkdAvailableKeys)
 {
     NS_LOG_FUNCTION(this << requestedKeys << qkdAvailableKeys << m_pqc_enabled << m_pqc_c);
+
+#ifdef QKDNETSIM_WITH_PQC
 
     if (!m_pqc_enabled || !m_pqc_c) return requestedKeys; 
 
@@ -2870,6 +2888,8 @@ QKDKeyManagerSystemApplication::ComputePqcMixing(uint32_t requestedKeys, uint32_
 
     NS_LOG_FUNCTION(this << "qkdKeysToUse:" << qkdKeysToUse);
     return qkdKeysToUse;
+#endif
+    return 0;
 }
 
 void
@@ -2878,6 +2898,7 @@ QKDKeyManagerSystemApplication::SendPQCPublicKey(Ptr<Socket> socket)
   NS_LOG_FUNCTION(this << "*** 1 *** " << socket);
   NS_ASSERT(socket);
 
+#ifdef QKDNETSIM_WITH_PQC
   std::map<Ipv4Address, KMSNode>::iterator it;
   for( it = m_socketPairsKMS.begin(); !(it == m_socketPairsKMS.end());  it++ )
   {
@@ -2912,11 +2933,16 @@ QKDKeyManagerSystemApplication::SendPQCPublicKey(Ptr<Socket> socket)
       return;
     }
   }
+#endif
+
 }
 
 void QKDKeyManagerSystemApplication::ProcessPQCPublicKeyRequest(HTTPMessage headerIn, Ptr<Socket> socket)
 {
   NS_LOG_FUNCTION(this << "*** 2 *** " << headerIn.GetUri());
+
+#ifdef QKDNETSIM_WITH_PQC
+
   std::vector<std::string> uriParams {ReadUri(headerIn.GetUri())};
   
   std::string payload = headerIn.GetMessageBodyString();
@@ -2982,11 +3008,17 @@ void QKDKeyManagerSystemApplication::ProcessPQCPublicKeyRequest(HTTPMessage head
     NS_LOG_ERROR(this << "KMS NODE node detected!");
     return;
   }
+
+#endif
+
 }
 
 void QKDKeyManagerSystemApplication::ProcessPQCPublicKeyResponse(HTTPMessage headerIn, Ptr<Socket> socket)
 {
   NS_LOG_FUNCTION(this << "*** 3 *** " << headerIn.GetUri());
+
+#ifdef QKDNETSIM_WITH_PQC
+
   std::vector<std::string> uriParams {ReadUri(headerIn.GetUri())};
   
   std::string payload = headerIn.GetMessageBodyString();
@@ -3030,11 +3062,17 @@ void QKDKeyManagerSystemApplication::ProcessPQCPublicKeyResponse(HTTPMessage hea
     NS_LOG_ERROR(this << "KMS connection not found!");
     return;
   }
+
+#endif
+
 }
 
 void QKDKeyManagerSystemApplication::ProcessPQCCipherRequest(HTTPMessage headerIn, Ptr<Socket> socket)
 {
   NS_LOG_FUNCTION(this << "*** 4 *** " << headerIn.GetUri());
+
+#ifdef QKDNETSIM_WITH_PQC
+
   std::vector<std::string> uriParams {ReadUri(headerIn.GetUri())};
    
   const std::string payload = headerIn.GetMessageBodyString();
@@ -3136,11 +3174,15 @@ void QKDKeyManagerSystemApplication::ProcessPQCCipherRequest(HTTPMessage headerI
     }
   }
 
+#endif
+
 }
 
 void QKDKeyManagerSystemApplication::ProcessPQCCipherResponse (HTTPMessage headerIn, Ptr<Socket> socket)
 {
   NS_LOG_FUNCTION(this << "*** 5 *** " << headerIn.GetUri());
+
+#ifdef QKDNETSIM_WITH_PQC
 
   // Parse JSON
   const std::string payload = headerIn.GetMessageBodyString();
@@ -3202,7 +3244,11 @@ void QKDKeyManagerSystemApplication::ProcessPQCCipherResponse (HTTPMessage heade
     }
   }
 
+#endif
+
 }
+ 
+
 
 ////////////////////////
 /// KMS-KMS RELAY

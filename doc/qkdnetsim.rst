@@ -270,63 +270,7 @@ This section describes ETSI QKD 014 and ETSI QKD 004 API methods (GET_STATUS, GE
 Installation
 ------------
 
-QKDNetSim is tested on Ubuntu 22.04 and it is compatible with NS-3 version 3.46 (December 2025). Please follow steps below to complete the installation process:
-
-1. Install prerequisites:
-
-::
-
- $ apt-get install gcc g++ python3 python3-dev mercurial bzr gdb valgrind gsl-bin doxygen graphviz imagemagick -y  && \
- $ apt-get install libboost-all-dev git flex bison tcpdump sqlite sqlite3 -y   && \
- $ apt-get install libsqlite3-dev libxml2 libxml2-dev libgtk2.0-0 libgtk2.0-dev uncrustify -y  && \
- $ apt-get install libcrypto++-dev libcrypto++-doc libcrypto++-utils unzip wget uuid-dev cmake -y
-
-2. Install the NS-3 of version 3.46 from the www.nsnam.org website. 
-
-::
-
- git clone -b ns-3.46 https://gitlab.com/nsnam/ns-3-dev.git
-
-3. Download qkdnetsim in contrib directory
-
-::
-
-   cd contrib
-   git clone -b master https://github.com/QKDNetSim/qkdnetsim
-   
-4. Check patches. They should report no error
-
-::
-
-   git apply --check contrib/qkdnetsim/patches/gnuplot_cc.patches
-   git apply --check contrib/qkdnetsim/patches/gnuplot_h.patches
-
-
-5. Apply patches
-
-::
-
-   git apply  contrib/qkdnetsim/patches/gnuplot_h.patches
-   git apply  contrib/qkdnetsim/patches/gnuplot_cc.patches
-
-
-6. Configure NS-3 with qkdnetsim
-
-::
-
-   ./ns3 configure --enable-mpi --enable-examples 
-
-7. Run qkdnetsim examples
-
-::
-
-   ./ns3 run examples_qkdnetsim_etsi_014
-   ./ns3 run examples_qkdnetsim_etsi_004
-   ./ns3 run examples_qkdnetsim_secoqc
-   ./ns3 run examples_qkdnetsim_etsi_combined_input
-   ./ns3 run examples_qkdnetsim_etsi_014_emulation_tap
-
-9) Check documentation in contrib/qkdnetsim/doc/qkdnetsim.rst for more details
+Installation instructions are available at QKDNetSim Github repository: https://github.com/QKDNetSim/qkdnetsim
 
 
 Examples
