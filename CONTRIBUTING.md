@@ -18,25 +18,6 @@ Please include:
 
 ## Development Setup
 
-### Building the Simulator
-
-This module is designed to work with NS-3 (ns-3.44 or later).
-
-```bash
-./ns3 configure --enable-examples --enable-mpi --enable-sudo
-./ns3 build
-```
-Run the quantum examples
-```bash
-./ns3 run examples_qkd_etsi_014
-./ns3 run examples_qkd_etsi_004
-./ns3 run examples_secoqc
-./ns3 run examples_qkd_etsi_combined_input
-./ns3 run examples_qkd_etsi_014_emulation_tap
-```
-
-## Submitting Contributions
-
 ### Workflow
 
 1. Fork the repo.

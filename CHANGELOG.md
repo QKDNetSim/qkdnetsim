@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.1.3] - 2026-08-27
+### Change
+- PQC support included
+- ETSI 004 application bug fixed
+- KMS-KMS communication improved
+
 ## [3.1.2] - 2026-02-03
 ### Change
 - License update
