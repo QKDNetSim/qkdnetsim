@@ -809,6 +809,13 @@ private:
   void HttpKMSAddQuery(Ipv4Address dstKms, HttpQuery request);
 
   /**
+   * @brief fetch HTTP request based on response and header URI
+   * @param request HTTP uri
+   * @return HttpQuery
+   */
+  HttpQuery* HttpKMSFetchQuery(Ipv4Address dstKms, std::string uri);
+
+  /**
    * @brief remove mapped HTTP response from query
    * @param dstKms destination kms IP address
    */
