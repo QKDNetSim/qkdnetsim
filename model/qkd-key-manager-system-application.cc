@@ -857,8 +857,9 @@ QKDKeyManagerSystemApplication::GetSocketKMS(Ipv4Address kmsDstAddress)
 
   if(i == m_socketPairsKMS.end())
   {
-    NS_FATAL_ERROR( this << "No connection between KMS defined!"); //@toDo: include HTTP response!
-    return NULL;
+    NS_LOG_ERROR( this << "No connection between KMS defined!"); //@toDo: include HTTP response!
+    CheckSocketsKMS(kmsDstAddress);
+    return GetSocketKMS(kmsDstAddress);
   } else {
     KMSNode pair = i->second; 
     Ptr<Socket> socket = pair.socket;
@@ -1422,7 +1423,7 @@ void QKDKeyManagerSystemApplication::ProcessEtsi014GetKey(std::string remoteAppI
       {
         std::string skeyId = GenerateUUID(); 
         Ptr<QKDKey> tempKey = CreateObject<QKDKey>(skeyId, keyString);
-        NS_LOG_FUNCTION(this << "PPP2: " << tempKey->GetSizeInBits() << " ::: " << tempKey->ToString());
+        NS_LOG_FUNCTION(this << "PPP2: " << tempKey->GetSizeInBits());
         supplyKeys.push_back(tempKey);
         supplyKeyIds.push_back(skeyId);
  
@@ -1515,7 +1516,7 @@ void QKDKeyManagerSystemApplication::ProcessEtsi014GetKey(std::string remoteAppI
         {
           std::string skeyId = GenerateUUID();
           Ptr<QKDKey> tempKey = CreateObject<QKDKey>(skeyId, keyString);
-          NS_LOG_FUNCTION(this << "PPP2 (PQC): " << tempKey->GetSizeInBits() << " ::: " << tempKey->ToString());
+          NS_LOG_FUNCTION(this << "PPP2 (PQC): " << tempKey->GetSizeInBits());
 
           supplyKeysPQC.push_back(tempKey);
           supplyKeyIdsPQC.push_back(skeyId);
@@ -1635,11 +1636,10 @@ void QKDKeyManagerSystemApplication::ProcessEtsi014GetKey(std::string remoteAppI
     NS_ASSERT(socket); //Check
 
     //Create packet
-    std::string headerUri = "http://" + GetAddressString(dstKms);
-    headerUri += "/api/v1/sbuffers/skey_create";
+    std::string headerUri = GetAddressString(dstKms) + "/api/v1/sbuffers/skey_create";
 
     HTTPMessage httpMessage;
-    httpMessage.CreateRequest(headerUri, "POST", msg1);
+    httpMessage.CreateRequest("http://" + headerUri, "POST", msg1);
     std::string hMessage = httpMessage.ToString();
     Ptr<Packet> packet = Create<Packet>(
      (uint8_t*)(hMessage).c_str(),
@@ -1651,6 +1651,7 @@ void QKDKeyManagerSystemApplication::ProcessEtsi014GetKey(std::string remoteAppI
     httpRequest.method_type = RequestType::TRANSFORM_KEYS;
     httpRequest.peerNodeId = conn.GetDestinationKmNodeId();
     httpRequest.surplus_key_ID = surplusKeyId;
+    httpRequest.request_uri = headerUri;
     HttpKMSAddQuery(dstKms, httpRequest); //Remember request to properly map response! 
     SendToSocketPairKMS(socket, packet);
     
@@ -1767,6 +1768,7 @@ QKDKeyManagerSystemApplication::ValidateEtsi014GetKeyRequest(
     );
 
     uint32_t keySize_qkd = 0;
+    
     if(buffer->GetState() == 0)
     {
       keySize_qkd = requestedBits;
@@ -2179,12 +2181,11 @@ QKDKeyManagerSystemApplication::ProcessEtsi004Close(std::string ksid, HTTPMessag
     }
     std::string msg = msgBody.dump();
 
-    std::string headerUri = "http://" + GetAddressString((it->second).dstKmsAddr); //Uri starts with destination KMS address
-    headerUri += "/api/v1/associations/close_kms/" + ksid;
-
+    std::string headerUri = GetAddressString((it->second).dstKmsAddr) + "/api/v1/associations/close_kms/" + ksid;
+    query.request_uri = headerUri;
     //Create packet
     HTTPMessage httpMessage;
-    httpMessage.CreateRequest(headerUri, "POST", msg);
+    httpMessage.CreateRequest("http://" + headerUri, "POST", msg);
     std::string hMessage = httpMessage.ToString();
     Ptr<Packet> packet = Create<Packet>(
      (uint8_t*)(hMessage).c_str(),
@@ -2473,21 +2474,28 @@ void QKDKeyManagerSystemApplication::ProcessStoreKey(HTTPMessage headerIn, Ptr<S
 
   NS_LOG_FUNCTION(this << "blockSize:" << blockSize);
 
-  while(!keyValue.empty())
+  if (blockSize == 0)
   {
-    std::string keyValueTemp {keyValue};
-    if(keyValue.size() >= blockSize)
-      keyValueTemp = keyValue.substr(0, blockSize); //Take portion of the QKD-key value for KMA-key
+      NS_LOG_ERROR(this << "Invalid key block size: " << blockSize); 
+  }else{
 
-    NS_LOG_FUNCTION(this << "keyValue.size():" << keyValue.size() << "keyValueTemp.size():" << keyValueTemp.size() );
-    
-    std::string completeHashInput = hashInput + std::to_string(blockIndex); //Complete HASH input
-    std::string blockKeyId {encryptor->SHA1(completeHashInput)}; //Generate KMA-key ID based on the HASH output
-    Ptr<QKDKey> newKey = CreateObject<QKDKey>(blockKeyId, keyValueTemp); //Create a QKDKey object to represent KMA-key
-    newKey->SetModuleId(moduleId);
-    buffer->StoreKey(newKey); //Store KMA-key in QKD buffer
-    keyValue.erase(0, blockSize); //Update QKD-key value
-    blockIndex++;
+    while(!keyValue.empty())
+    {
+      std::string keyValueTemp {keyValue};
+      if(keyValue.size() >= blockSize)
+        keyValueTemp = keyValue.substr(0, blockSize); //Take portion of the QKD-key value for KMA-key
+
+      NS_LOG_FUNCTION(this << "keyValue.size():" << keyValue.size() << "keyValueTemp.size():" << keyValueTemp.size() );
+      
+      std::string completeHashInput = hashInput + std::to_string(blockIndex); //Complete HASH input
+      std::string blockKeyId {encryptor->SHA1(completeHashInput)}; //Generate KMA-key ID based on the HASH output
+      Ptr<QKDKey> newKey = CreateObject<QKDKey>(blockKeyId, keyValueTemp); //Create a QKDKey object to represent KMA-key
+      newKey->SetModuleId(moduleId);
+      buffer->StoreKey(newKey); //Store KMA-key in QKD buffer
+      keyValue.erase(0, blockSize); //Update QKD-key value
+      blockIndex++;
+
+    }
   }
 
   UpdateLinkState(dstNodeId); //Update link state on generation for link UP.
@@ -3128,10 +3136,13 @@ void QKDKeyManagerSystemApplication::ProcessPQCCipherRequest(HTTPMessage headerI
     }
  
 
-    // Store shared secret under provided key_id
-    std::string secret_bin;
-    Ptr<QKDKey> key = CreateObject<QKDKey>(keyId, secret_bin);
+    // Store shared secret under provided key_id 
+    Ptr<QKDKey> key = CreateObject<QKDKey>(keyId, ct_bin);
     uint32_t keySizeInBits = key->GetSizeInBits();
+
+    if (!keySizeInBits)
+      NS_FATAL_ERROR(this << "PQC key is empty!" << keyId << " - " << ct_bin );
+
     key->SwitchToState(QKDKey::READY);
     bool isStored = sBuffer->StoreKey(key, true);
 
@@ -3937,6 +3948,7 @@ QKDKeyManagerSystemApplication::Fill(
   uint32_t qkdAmount = 0;
   uint32_t pqcAmount = 0;
 
+  
   if (sourceBuffer->GetState() == 0 && availableQKD >= requestedAmount)
   {
     qkdAmount = requestedAmount;
@@ -4087,13 +4099,13 @@ QKDKeyManagerSystemApplication::Fill(
   // ==========================================================
   UpdateLinkState(dstKmNodeId); 
 
-  std::string headerUri = "http://" + GetAddressString(peerAddress) +
-                          "/api/v1/sbuffers/fill";
+  std::string headerUri = GetAddressString(peerAddress) +
+                          "/api/v1/sbuffers/fill" + "?r=" + GenerateUUID();
 
   std::string msg = fillPayload.dump();
 
   HTTPMessage httpMessage;
-  httpMessage.CreateRequest(headerUri, "POST", msg);
+  httpMessage.CreateRequest("http://" + headerUri, "POST", msg);
   std::string hMessage = httpMessage.ToString();
   Ptr<Packet> packet = Create<Packet>(
     (uint8_t*)hMessage.c_str(),
@@ -4104,6 +4116,7 @@ QKDKeyManagerSystemApplication::Fill(
 
   HttpQuery query;
   query.method_type = FILL;
+  query.request_uri = headerUri;
   query.peerNodeId = dstKmNodeId;
   query.sBuffer = direction;
   query.keyIds = keyIds;
@@ -4632,20 +4645,23 @@ QKDKeyManagerSystemApplication::ProcessFillResponse(
   HTTPMessage headerIn,
   Ipv4Address from)
 {
-  NS_LOG_FUNCTION(this << headerIn.GetRequestUri());
+  std::string uri = headerIn.GetRequestUri();
+  NS_LOG_FUNCTION(this << uri);
 
-  Ipv4Address dstKms { ReadUri(headerIn.GetRequestUri())[0].c_str() };
-  auto itQuery = m_httpRequestsQueryKMS.find(dstKms);
-
-  if (itQuery == m_httpRequestsQueryKMS.end() || itQuery->second.empty())
+  std::vector<std::string> uriParamsVector = ReadUri(headerIn.GetRequestUri());
+  Ipv4Address dstKms { uriParamsVector[0].c_str() };
+  auto* itQuery = HttpKMSFetchQuery(dstKms, uri);
+  if (itQuery == nullptr)
     NS_FATAL_ERROR(this << "Response cannot be mapped! HttpQuery empty!");
 
-  HttpQuery query = itQuery->second[0];
+  const HttpQuery& query = *itQuery;
   if (query.method_type != FILL) {
     NS_LOG_ERROR(this << "Invalid mapping");
     HttpKMSCompleteQuery(dstKms);
     return;
   }
+
+  NS_ASSERT(query.request_uri == uri);
 
   std::string payload = headerIn.GetMessageBodyString();
   nlohmann::json j;
@@ -4661,7 +4677,8 @@ QKDKeyManagerSystemApplication::ProcessFillResponse(
 
   uint32_t peerNodeId = query.peerNodeId;
 
-  Ptr<QBuffer> sourceBuffer = nullptr;  
+  Ptr<QBuffer> sourceBuffer = nullptr; 
+  std::string sBufferType = query.sBuffer; 
   if(GetController()->GetRoute(peerNodeId).GetHop() == 1)
   { 
     sourceBuffer = GetQBuffer(peerNodeId);
@@ -4669,16 +4686,15 @@ QKDKeyManagerSystemApplication::ProcessFillResponse(
 
   }else{ 
     sourceBuffer = GetSBuffer(peerNodeId, "enc");
-    NS_LOG_FUNCTION(this << peerNodeId << "sourceBuffer is encSbuffer! " << sourceBuffer );
+    NS_LOG_FUNCTION(this << peerNodeId << "sourceBuffer is encSbuffer! " << sourceBuffer);
   }
   NS_ASSERT(sourceBuffer);
 
-  std::string sBufferType = query.sBuffer;
   Ptr<SBuffer> sBuffer = nullptr; 
   if(sBufferType == "enc" || sBufferType == "dec")
   {
     sBuffer = GetSBuffer(peerNodeId, sBufferType);
-    NS_LOG_FUNCTION(this << "dstBuffer is SBuffer! " << sBuffer);
+    NS_LOG_FUNCTION(this << "dstBuffer is SBuffer! " << sBuffer << ":::" << sBufferType);
   }else
   { 
     if(!ksid.empty())
@@ -4901,13 +4917,15 @@ QKDKeyManagerSystemApplication::ProcessFillResponse(
           NS_FATAL_ERROR(this << "Missing PQC key " << pid);
 
         std::string full = k->GetKeyString();
+        if (!full.size())
+          NS_FATAL_ERROR(this << "Missing PQC key " << pid);
 
         uint32_t startByte = startBit / 8;
         uint32_t endByte   = endBit / 8;
 
         NS_LOG_FUNCTION(this << "We fetched proposed PQC key " << pid);
 
-        NS_ASSERT_MSG(endByte <= full.size(), "PQC range overflow");
+        NS_ASSERT_MSG(endByte <= full.size(), "PQC range overflow" << endBit << "-" << full.size());
 
         reconstructed += full.substr(startByte, endByte - startByte + 1);
 
@@ -5030,12 +5048,11 @@ QKDKeyManagerSystemApplication::NewAppRequest(std::string ksid)
 
     std::ostringstream peerkmsAddressTemp;
    (it->second).dstKmsAddr.Print(peerkmsAddressTemp); //IPv4Address to string
-    std::string headerUri = "http://" + peerkmsAddressTemp.str(); //Uri starts with destination KMS address
-    headerUri += "/api/v1/associations/new_app";
+    std::string headerUri = peerkmsAddressTemp.str() + "/api/v1/associations/new_app";
 
     //Create packet
     HTTPMessage httpMessage;
-    httpMessage.CreateRequest(headerUri, "POST", msg);
+    httpMessage.CreateRequest("http://" + headerUri, "POST", msg);
     std::string hMessage = httpMessage.ToString();
     Ptr<Packet> packet = Create<Packet>(
      (uint8_t*)(hMessage).c_str(),
@@ -5048,6 +5065,7 @@ QKDKeyManagerSystemApplication::NewAppRequest(std::string ksid)
     query.source_sae =(it->second).srcSaeId;
     query.destination_sae =(it->second).dstSaeId;
     query.ksid = ksid;
+    query.request_uri = headerUri;
     HttpKMSAddQuery((it->second).dstKmsAddr, query);
     SendToSocketPairKMS(socket, packet);
     NS_LOG_FUNCTION( this << "NEW_APP: KMS informs peer KMS on new association established!" );
@@ -5121,14 +5139,16 @@ void
 QKDKeyManagerSystemApplication::ProcessNewAppResponse(HTTPMessage headerIn, Ptr<Socket> socket)
 {
     NS_LOG_FUNCTION( this << "Processing NEW_APP response" );
-    std::vector<std::string> uriParams = ReadUri(headerIn.GetRequestUri());
+    std::string uri = headerIn.GetRequestUri();
+    std::vector<std::string> uriParams = ReadUri(uri);
     Ipv4Address dstKms = uriParams[0].c_str();
     NS_LOG_FUNCTION(this << dstKms);
-    auto it = m_httpRequestsQueryKMS.find(dstKms);
-    if(it == m_httpRequestsQueryKMS.end() ||(it->second).empty())
+    auto* itQuery = HttpKMSFetchQuery(dstKms, uri);
+    if(itQuery == nullptr)
         NS_FATAL_ERROR( this << "Response cannot be mapped! HttpQuery empty!" );
+    const HttpQuery& query = *itQuery;
 
-    std::string dstSaeId = it->second[0].destination_sae;
+    std::string dstSaeId = query.destination_sae;
 
     if(headerIn.GetStatus() == 200)
     { 
@@ -5140,7 +5160,7 @@ QKDKeyManagerSystemApplication::ProcessNewAppResponse(HTTPMessage headerIn, Ptr<
           if(QoS)
           {
             nlohmann::json jOpenConnectResponse;
-            jOpenConnectResponse["Key_stream_ID"] = it->second[0].ksid;
+            jOpenConnectResponse["Key_stream_ID"] = query.ksid;
             std::string msg = jOpenConnectResponse.dump();
 
             //create packet
@@ -5167,7 +5187,7 @@ QKDKeyManagerSystemApplication::ProcessNewAppResponse(HTTPMessage headerIn, Ptr<
       }
 
     }else{ //Status indicating error!
-        std::string ksid = it->second[0].ksid;
+        std::string ksid = query.ksid;
         if(GetController()->GetRoute(dstSaeId).GetHop() == 1) //dstKms for point-to-point scenario!
             HttpKMSCompleteQuery(dstKms); //Point-to-point scenario. Response just as acknowledgement!
         else{
@@ -5199,12 +5219,11 @@ QKDKeyManagerSystemApplication::RegisterRequest(std::string ksid)
     Ptr<Socket> socket = GetSocketKMS( dstKms ); //Obtain send socket object to reach dstKms
     NS_ASSERT(socket);
 
-    std::string headerUri = "http://" + GetAddressString(dstKms);
-    headerUri += "/api/v1/associations/register/" + ksid; //Create an URI for the register request
+    std::string headerUri = GetAddressString(dstKms) + "/api/v1/associations/register/" + ksid; //Create an URI for the register request
 
     //Create packet
     HTTPMessage httpMessage;
-    httpMessage.CreateRequest(headerUri, "GET");
+    httpMessage.CreateRequest("http://" + headerUri, "GET");
     std::string hMessage = httpMessage.ToString();
     Ptr<Packet> packet = Create<Packet>(
      (uint8_t*)(hMessage).c_str(),
@@ -5215,6 +5234,7 @@ QKDKeyManagerSystemApplication::RegisterRequest(std::string ksid)
     HttpQuery query;
     query.method_type = REGISTER;
     query.ksid = ksid;
+    query.request_uri = headerUri;
     HttpKMSAddQuery(dstKms, query); //Remember HTTP query to be able to map response later
     SendToSocketPairKMS(socket, packet);
 }
@@ -5265,7 +5285,8 @@ void
 QKDKeyManagerSystemApplication::ProcessRegisterResponse(HTTPMessage headerIn, Ptr<Socket> socket)
 {
   NS_LOG_FUNCTION( this << "Processing /register response!");
-  std::vector<std::string> uriParams = ReadUri(headerIn.GetRequestUri());
+  std::string uri = headerIn.GetRequestUri();
+  std::vector<std::string> uriParams = ReadUri(uri);
   std::string ksid;
   NS_LOG_FUNCTION(this << uriParams[4] << uriParams[5]);
   if(uriParams[4] != "register"){
@@ -5281,8 +5302,8 @@ QKDKeyManagerSystemApplication::ProcessRegisterResponse(HTTPMessage headerIn, Pt
   }
 
   Ipv4Address dstKms =(it1->second.dstKmsAddr);
-  auto it = m_httpRequestsQueryKMS.find(dstKms);
-  if(it == m_httpRequestsQueryKMS.end() ||(it->second).empty())
+  auto* itQuery = HttpKMSFetchQuery(dstKms, uri);
+  if(itQuery == nullptr)
       NS_FATAL_ERROR( this << "Response cannot be mapped! HttpQuery empty!" );
 
   if(headerIn.GetStatus() == HTTPMessage::HttpStatus::Ok){
@@ -5495,7 +5516,7 @@ QKDKeyManagerSystemApplication::ProcessSKeyCreateRequest(
               CreateObject<QKDKey>(
                   supplyKeyIds[k],
                   keyString);
-          NS_LOG_FUNCTION(this << "PPP3: " << skey->GetSizeInBits() << " ::: " << skey->ToString());
+          NS_LOG_FUNCTION(this << "PPP3: " << skey->GetSizeInBits());
 
           sBuffer->StoreSupplyKey(skey);
           supplyKeys.push_back(skey);
@@ -5600,7 +5621,7 @@ QKDKeyManagerSystemApplication::ProcessSKeyCreateRequest(
                     supplyKeyIdsPQC[k],
                     keyString);
 
-            NS_LOG_FUNCTION(this << "PPP3 (PQC): " << skeyPQC->GetSizeInBits() << " ::: " << skeyPQC->ToString());
+            NS_LOG_FUNCTION(this << "PPP3 (PQC): " << skeyPQC->GetSizeInBits());
             sBufferPQC->StoreSupplyKey(skeyPQC);
 
             /*
@@ -5690,30 +5711,30 @@ QKDKeyManagerSystemApplication::ProcessSKeyCreateResponse(HTTPMessage headerIn, 
     NS_LOG_FUNCTION(this);
     std::string payload = headerIn.GetMessageBodyString(); //Read payload
 
-    std::vector<std::string> uriParams {ReadUri(headerIn.GetRequestUri())};
+    std::string uri = headerIn.GetRequestUri();
+    std::vector<std::string> uriParams {ReadUri(uri)};
 
     Ipv4Address peerAddress = uriParams[0].c_str();
-    auto it = m_httpRequestsQueryKMS.find(peerAddress);
-    if(it == m_httpRequestsQueryKMS.end()){
-      NS_LOG_ERROR(this);
-      return;
-    }
+    auto* itQuery = HttpKMSFetchQuery(peerAddress, uri);    
+    if(itQuery == nullptr)
+        NS_FATAL_ERROR( this << "Response cannot be mapped! HttpQuery empty!" );
+    const HttpQuery& query = *itQuery;
 
     if(headerIn.GetStatus() == HTTPMessage::HttpStatus::Ok)
     { //ACK message
 
       NS_LOG_FUNCTION(this << "We received HTTP OK(ack)!");
 
-      if(it->second[0].surplus_key_ID.empty())
+      if(query.surplus_key_ID.empty())
       { //There is nothing to perform on this ACK response
         NS_LOG_FUNCTION(this << "2895");
         HttpKMSCompleteQuery(peerAddress);
         return;
       }
 
-      Ptr<SBuffer> sBuffer = GetSBuffer(it->second[0].peerNodeId, "enc");
+      Ptr<SBuffer> sBuffer = GetSBuffer(query.peerNodeId, "enc");
       NS_ASSERT(sBuffer);
-      std::string surplusKeyId {(it->second[0]).surplus_key_ID};
+      std::string surplusKeyId {(query).surplus_key_ID};
       sBuffer->MarkKey(surplusKeyId, QKDKey::READY);
 
     }else{
@@ -5839,8 +5860,8 @@ QKDKeyManagerSystemApplication::ReleaseAssociation(std::string ksid, std::string
     //Remove keys to sync index. Trace WASTED keys
     while(it->second.stre_buffer->GetNextIndex() && it->second.stre_buffer->GetNextIndex() < syncIndex)
     { //@toDo GetNextIndex could be 0, but for now, we assume association is closed(released) sometimes after
-  		NS_LOG_FUNCTION(this << "emir1" << it->second.stre_buffer->GetNextIndex());
-  		Ptr<QKDKey> key = it->second.stre_buffer->GetStreamKey(); 
+      NS_LOG_FUNCTION(this << "emir1" << it->second.stre_buffer->GetNextIndex());
+      Ptr<QKDKey> key = it->second.stre_buffer->GetStreamKey(); 
       m_keyWastedOnRelayTrace( 
         it->second.srcNodeId, 
         it->second.dstNodeId, 
@@ -5867,13 +5888,13 @@ QKDKeyManagerSystemApplication::ProcessKMSCloseResponse(HTTPMessage headerIn, Pt
     NS_FATAL_ERROR(this << "json parse error");
   }
 
-  Ipv4Address dstKms { ReadUri(headerIn.GetRequestUri())[0].c_str() };
-  auto it = m_httpRequestsQueryKMS.find(dstKms);
-  if(it == m_httpRequestsQueryKMS.end()){
-    NS_LOG_ERROR(this << "unable to map response; query empty");
-    return;
-
-  }
+  std::string uri = headerIn.GetRequestUri();
+  Ipv4Address dstKms { ReadUri(uri)[0].c_str() };
+  auto* itQuery = HttpKMSFetchQuery(dstKms, uri);
+  if(itQuery == nullptr)
+      NS_FATAL_ERROR( this << "Response cannot be mapped! HttpQuery empty!" );
+  const HttpQuery& query = *itQuery;
+ 
   std::string ksid { ReadUri(headerIn.GetRequestUri())[5].c_str() };
   auto a = m_associations004.find(ksid);
   if(a == m_associations004.end()){
@@ -5904,14 +5925,14 @@ QKDKeyManagerSystemApplication::ProcessKMSCloseResponse(HTTPMessage headerIn, Pt
     m_associations004.erase(a); //Remove key stream.
 
   }else if(headerIn.GetStatus() == HTTPMessage::Ok){ //Perserve key material if any. Remove key stream. Trace discarded key material
-    uint32_t peerSyncIndex {0}, localSyncIndex {it->second[0].sync_index};
+    uint32_t peerSyncIndex {0}, localSyncIndex {query.sync_index};
     if(jcloseResponse.contains("sync_index"))
     {
       peerSyncIndex = jcloseResponse["sync_index"];
       if(peerSyncIndex > localSyncIndex)
         localSyncIndex = peerSyncIndex;
 
-      ReleaseAssociation(it->second[0].ksid, it->second[0].surplus_key_ID, localSyncIndex);
+      ReleaseAssociation(query.ksid, query.surplus_key_ID, localSyncIndex);
 
     }else{
       //must record key WASTED 
@@ -5920,8 +5941,8 @@ QKDKeyManagerSystemApplication::ProcessKMSCloseResponse(HTTPMessage headerIn, Pt
         Ptr<QKDKey> key {a->second.stre_buffer->GetStreamKey()};
         if(key)
         {
-    			NS_LOG_FUNCTION(this << key->GetId());
-    			presentKeyMaterial += key->GetSizeInBits(); 
+          NS_LOG_FUNCTION(this << key->GetId());
+          presentKeyMaterial += key->GetSizeInBits(); 
           m_keyWastedOnRelayTrace( 
             a->second.srcNodeId, 
             a->second.dstNodeId, 
@@ -5953,12 +5974,29 @@ QKDKeyManagerSystemApplication::ProcessKMSCloseResponse(HTTPMessage headerIn, Pt
 void
 QKDKeyManagerSystemApplication::HttpKMSAddQuery(Ipv4Address dstKms, HttpQuery request)
 {
-    NS_LOG_FUNCTION( this << dstKms);
+    NS_LOG_FUNCTION( this << dstKms << request.sBuffer << request.request_uri);
     auto it = m_httpRequestsQueryKMS.find(dstKms);
     if(it != m_httpRequestsQueryKMS.end())
         it->second.push_back(request);
     else
         m_httpRequestsQueryKMS.insert(std::make_pair(dstKms, std::vector<HttpQuery> {request}));
+}
+
+QKDKeyManagerSystemApplication::HttpQuery*
+QKDKeyManagerSystemApplication::HttpKMSFetchQuery(Ipv4Address dstKms, std::string uri)
+{
+  NS_LOG_FUNCTION(this << uri);
+  auto it = m_httpRequestsQueryKMS.find(dstKms);
+  if(it != m_httpRequestsQueryKMS.end())
+  {
+    for (auto& query : it->second)
+    {
+        if(query.request_uri == uri)
+          return &query;
+    }
+  }
+  NS_LOG_ERROR( this << "HTTP query for this KMS is empty!");
+  return nullptr;
 }
 
 void
@@ -6027,6 +6065,9 @@ QKDKeyManagerSystemApplication::FetchRequestType(std::string s)
 {
 
   NS_LOG_FUNCTION(this << s );
+  size_t pos = s.find('?');
+  if (pos != std::string::npos)
+      s.erase(pos);
 
   RequestType output;
 
@@ -6090,8 +6131,7 @@ QKDKeyManagerSystemApplication::FetchRequestType(std::string s)
 
     return PQC_PUBLIC_KEY;
 
-  } else {
-
+  } else { 
       NS_FATAL_ERROR(this << "Unknown Type: " << s);
   }
 

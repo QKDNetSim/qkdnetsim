@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.1.5] - 2026-11-11
+### Change
+- ETSI004 application: auth tag is by default set to 32 zeros
+- KMS application: PQC key generation fixed
+
 ## [3.1.4] - 2026-09-21
 ### Change
 - Examples: tracking statistics improved

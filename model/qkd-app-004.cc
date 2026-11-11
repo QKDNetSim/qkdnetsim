@@ -1073,12 +1073,15 @@ QKDApp004::SendPacket()
     SetState(SEND_DATA); //Direct call from SceduleTx()
   }
 
-  if(GetState() == SEND_DATA){ //Only in SEND_DATA can app send data
-
+  if(GetState() == SEND_DATA)
+  { 
+    //Only in SEND_DATA can app send data
     Ptr<AppKey> encKey, authKey;
     uint32_t encKeyId {0};
     uint32_t authKeyId {0}; //Necessary for headers
-    std::string confidentialMsg {GetPacketContent()}, encryptedMsg {confidentialMsg}, authTag {GetPacketContent(32)};
+    std::string confidentialMsg {GetPacketContent()}, encryptedMsg {confidentialMsg};
+    std::string authTag (32, '0');
+
     if(GetEncryptionKeySize() )
     { //Obtain encryption key!
       encKey = m_encStream->GetKey(m_packetSize);
@@ -1100,7 +1103,9 @@ QKDApp004::SendPacket()
       }
     }
 
-    if(GetAuthenticationKeySize() ){//Obtain authentication
+    if(GetAuthenticationKeySize() )
+    {
+      //Obtain authentication
       authKey = m_authStream->GetKey();
       if(!authKey){
         NS_LOG_ERROR(this << "no autentication key available");
@@ -1138,6 +1143,7 @@ QKDApp004::SendPacket()
     qHeader.SetAuthenticationKeyId(authKeyIdStr);
     qHeader.SetAuthTag(authTag);
     qHeader.SetLength(packet->GetSize() + qHeader.GetSerializedSize());
+    qHeader.SetMessageId(m_packetsSent);
     packet->AddHeader(qHeader);
 
     //Send data packet!
@@ -1259,6 +1265,8 @@ QKDApp004::ProcessDataPacket(QKDAppHeader header, Ptr<Packet> packet, Ptr<Socket
               authSuccessful = true;
           }
       }
+  }else{
+    authSuccessful = true;
   }
 
   // -----------------------------------------------------------------------------
